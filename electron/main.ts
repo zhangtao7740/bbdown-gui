@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initIpcHandlers } from './ipc/index'
@@ -7,12 +7,45 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
 
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+// process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
-initIpcHandlers()
+function createTray() {
+  const iconPath = path.join(__dirname, '../public/favicon.ico') // 假设有图标
+  try {
+    tray = new Tray(iconPath)
+    const contextMenu = Menu.buildFromTemplate([
+      { label: '显示窗口', click: () => mainWindow?.show() },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        },
+      },
+    ])
+    tray.setToolTip('BBDown GUI')
+    tray.setContextMenu(contextMenu)
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.focus()
+        } else {
+          mainWindow.show()
+        }
+      }
+    })
+  } catch (e) {
+    console.error('Failed to create tray:', e)
+  }
+}
 
 function createWindow() {
+  initIpcHandlers()
+  createTray()
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -26,7 +59,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
     },
     show: false,
   })
@@ -40,6 +73,14 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      mainWindow?.hide()
+      return false
+    }
   })
 
   mainWindow.on('closed', () => {

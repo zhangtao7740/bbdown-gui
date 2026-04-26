@@ -5,11 +5,20 @@ import type { DownloadOptions, ProcessOutput, VideoInfo } from './types'
 export class BBDownWrapper {
   private bbdownPath: string
   private workingDir: string
-  private readonly outputEncoding = 'gb18030'
+  private outputEncoding: string = 'utf-8'
 
   constructor(bbdownPath?: string, workingDir?: string) {
     this.bbdownPath = bbdownPath || this.findBBDown()
     this.workingDir = workingDir || process.cwd()
+    this.detectEncoding()
+  }
+
+  private detectEncoding() {
+    this.outputEncoding = process.platform === 'win32' ? 'gb18030' : 'utf-8'
+  }
+
+  setEncoding(encoding: string) {
+    this.outputEncoding = encoding
   }
 
   private findBBDown(): string {
@@ -428,6 +437,47 @@ export class BBDownWrapper {
       })
 
       proc.on('error', reject)
+    })
+  }
+
+  async login(onQRCode: (qrcode: string) => void): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(this.bbdownPath, ['login'], {
+        cwd: this.workingDir,
+        env: { ...process.env },
+        windowsHide: true,
+      })
+
+      const stdoutDecoder = new TextDecoder(this.outputEncoding)
+      let lastLine = ''
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        const text = stdoutDecoder.decode(data, { stream: true })
+        const lines = (lastLine + text).split(/\r?\n/)
+        lastLine = lines.pop() || ''
+
+        for (const line of lines) {
+          // BBDown 登录时会输出二维码
+          if (line.includes('█') || line.includes('▄') || line.includes('▀')) {
+            onQRCode(line)
+          }
+          if (line.includes('登录成功')) {
+            resolve()
+          }
+        }
+      })
+
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`BBDown login exited with code ${code}`))
+        } else {
+          resolve()
+        }
+      })
+
+      proc.on('error', (err) => {
+        reject(err)
+      })
     })
   }
 

@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('bbdown:buildArgs', options),
     setPath: (path: string): Promise<boolean> =>
       ipcRenderer.invoke('bbdown:setPath', path),
+    login: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('bbdown:login'),
+    onQRCode: (callback: (qrcode: string) => void) => {
+      const handler = (_event: IpcRendererEvent, qrcode: string) => callback(qrcode)
+      ipcRenderer.on('bbdown:login-qrcode', handler)
+      return () => ipcRenderer.removeListener('bbdown:login-qrcode', handler)
+    },
   },
   task: {
     add: (
@@ -193,6 +200,8 @@ declare global {
         version: () => Promise<{ success: boolean; version?: string; error?: string }>
         buildArgs: (options: Partial<DownloadOptions>) => Promise<string[]>
         setPath: (path: string) => Promise<boolean>
+        login: () => Promise<{ success: boolean; error?: string }>
+        onQRCode: (callback: (qrcode: string) => void) => () => void
       }
       task: {
         add: (

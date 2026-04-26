@@ -57,11 +57,14 @@ export interface RescanResult {
 }
 
 export class HistoryManager {
-  private historyPath: string
-  private oldHistoryPath: string
+  private historyPath: string = ''
+  private oldHistoryPath: string = ''
   private cache: HistoryDatabase | null = null
 
-  constructor() {
+  constructor() {}
+
+  private async ensurePaths(): Promise<void> {
+    if (this.historyPath) return
     const userData = app?.getPath('userData') || process.cwd()
     this.historyPath = path.join(userData, 'history.v2.json')
     this.oldHistoryPath = path.join(userData, 'download_history.json')
@@ -339,6 +342,7 @@ export class HistoryManager {
   }
 
   private async loadDatabase(): Promise<HistoryDatabase> {
+    await this.ensurePaths()
     if (this.cache) return this.cache
 
     try {
@@ -358,6 +362,7 @@ export class HistoryManager {
   }
 
   private async saveDatabase(db: HistoryDatabase): Promise<void> {
+    await this.ensurePaths()
     this.cache = db
     await fs.mkdir(path.dirname(this.historyPath), { recursive: true })
     await fs.writeFile(this.historyPath, JSON.stringify(db, null, 2), 'utf-8')
@@ -366,9 +371,18 @@ export class HistoryManager {
   private async verifyJobs(jobs: HistoryJob[]): Promise<HistoryJob[]> {
     let changed = false
     const now = new Date().toISOString()
+    const nowMs = Date.now()
+    const VERIFY_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 
     for (const job of jobs) {
+      if (job.status !== 'completed') continue
+
       for (const artifact of job.artifacts) {
+        // Skip verification if checked recently
+        if (artifact.lastCheckedAt && nowMs - new Date(artifact.lastCheckedAt).getTime() < VERIFY_THRESHOLD_MS) {
+          continue
+        }
+
         try {
           const stat = await fs.stat(artifact.path)
           const exists = stat.isFile()

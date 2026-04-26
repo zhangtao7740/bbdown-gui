@@ -11,6 +11,15 @@ import {
   makeStyles,
   Switch,
   Divider,
+  Dialog,
+  DialogTrigger,
+  DialogSurface,
+  DialogTitle,
+  DialogContent,
+  DialogBody,
+  DialogActions,
+  Link,
+  Spinner,
 } from '@fluentui/react-components'
 import {
   FolderOpen20Regular,
@@ -18,6 +27,7 @@ import {
   ArrowRepeatAll20Regular,
   CheckmarkCircle20Regular,
   DismissCircle20Regular,
+  Person20Regular,
 } from '@fluentui/react-icons'
 import { useAppStore } from '@/store/appStore'
 import { api } from '@/lib/runtime'
@@ -43,6 +53,25 @@ const useStyles = makeStyles({
   pathRow: { display: 'flex', gap: '8px' },
   saveButton: { marginTop: '24px' },
   note: { color: 'var(--colorNeutralForeground3)', marginTop: '8px' },
+  downloadLinks: { marginTop: '4px', display: 'flex', gap: '8px' },
+  qrcodeContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '16px',
+    padding: '20px',
+  },
+  qrcode: {
+    fontFamily: 'monospace',
+    whiteSpace: 'pre',
+    lineHeight: 1,
+    fontSize: '8px',
+    backgroundColor: '#fff',
+    color: '#000',
+    padding: '10px',
+    borderRadius: '4px',
+    border: '1px solid var(--colorNeutralStroke1)',
+  },
 })
 
 function ToolStatusRow({ name, tool }: { name: string; tool?: { exists: boolean; version: string; path?: string } }) {
@@ -67,9 +96,50 @@ export function SettingsPage() {
   const { settings, updateSetting, saveSettings, tools, refreshTools } = useAppStore()
   const [saved, setSaved] = useState(false)
 
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
+  const [loginStatus, setLoginStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle')
+  const [qrcode, setQrcode] = useState('')
+  const [loginError, setLoginError] = useState('')
+
   useEffect(() => {
     refreshTools()
   }, [refreshTools])
+
+  const handleLogin = async () => {
+    setLoginStatus('scanning')
+    setQrcode('')
+    setLoginError('')
+
+    let isSubscribed = true
+    const unsubscribe = api.bbdown.onQRCode((code: string) => {
+      if (isSubscribed) {
+        setQrcode((prev) => prev + code + '\n')
+      }
+    })
+
+    try {
+      const result = await api.bbdown.login()
+      if (isSubscribed) {
+        if (result.success) {
+          setLoginStatus('success')
+          setTimeout(() => {
+            if (isSubscribed) setIsLoginDialogOpen(false)
+          }, 2000)
+        } else {
+          setLoginStatus('error')
+          setLoginError(result.error || '登录失败')
+        }
+      }
+    } catch (err) {
+      if (isSubscribed) {
+        setLoginStatus('error')
+        setLoginError(err instanceof Error ? err.message : '未知错误')
+      }
+    } finally {
+      isSubscribed = false
+      unsubscribe()
+    }
+  }
 
   const handleSelectPath = async (settingKey: 'bbdownPath' | 'ffmpegPath' | 'aria2cPath' | 'defaultWorkDir') => {
     const selected = settingKey === 'defaultWorkDir'
@@ -96,13 +166,76 @@ export function SettingsPage() {
   return (
     <div className={styles.container}>
       <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>工具路径</Text>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <Text size={400} style={{ fontWeight: 600 }}>工具路径</Text>
+          <Dialog open={isLoginDialogOpen} onOpenChange={(_, data) => setIsLoginDialogOpen(data.open)}>
+            <DialogTrigger disableButtonEnhancement>
+              <Button icon={<Person20Regular />} size="small" onClick={() => {
+                setIsLoginDialogOpen(true)
+                handleLogin()
+              }}>
+                B站扫码登录
+              </Button>
+            </DialogTrigger>
+            <DialogSurface>
+              <DialogBody>
+                <DialogTitle>B站扫码登录</DialogTitle>
+                <DialogContent>
+                  <div className={styles.qrcodeContainer}>
+                    {loginStatus === 'scanning' && !qrcode && (
+                      <>
+                        <Spinner label="正在初始化登录..." />
+                        <Text size={200} block className={styles.note}>
+                          请稍候，正在获取登录二维码...
+                        </Text>
+                      </>
+                    )}
+                    {qrcode && loginStatus === 'scanning' && (
+                      <>
+                        <div className={styles.qrcode}>{qrcode}</div>
+                        <Text weight="semibold">请使用 Bilibili 手机客户端扫码</Text>
+                      </>
+                    )}
+                    {loginStatus === 'success' && (
+                      <>
+                        <CheckmarkCircle20Regular style={{ fontSize: '48px', color: '#107C10' }} />
+                        <Text weight="semibold" size={500}>登录成功</Text>
+                      </>
+                    )}
+                    {loginStatus === 'error' && (
+                      <>
+                        <DismissCircle20Regular style={{ fontSize: '48px', color: '#D13438' }} />
+                        <Text weight="semibold">登录失败</Text>
+                        <Text size={200} className={styles.statusError}>{loginError}</Text>
+                        <Button appearance="primary" onClick={handleLogin}>重试</Button>
+                      </>
+                    )}
+                  </div>
+                </DialogContent>
+                <DialogActions>
+                  <DialogTrigger disableButtonEnhancement>
+                    <Button appearance="secondary">关闭</Button>
+                  </DialogTrigger>
+                </DialogActions>
+              </DialogBody>
+            </DialogSurface>
+          </Dialog>
+        </div>
         <Card>
           <ToolStatusRow name="BBDown" tool={tools.bbdown} />
           <Field label="BBDown 路径">
             <div className={styles.pathRow}>
-              <Input value={settings.bbdownPath} onChange={(_, data) => updateSetting('bbdownPath', data.value || '')} style={{ flex: 1 }} />
+              <Input
+                value={settings.bbdownPath}
+                onChange={(_, data) => updateSetting('bbdownPath', data.value || '')}
+                style={{ flex: 1 }}
+                placeholder="例如: C:\Tools\BBDown.exe"
+              />
               <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('bbdownPath')} />
+            </div>
+            <div className={styles.downloadLinks}>
+              <Text size={100}>下载: </Text>
+              <Link href="https://github.com/nilaoda/BBDown/releases" target="_blank">BBDown GitHub</Link>
             </div>
           </Field>
 
@@ -114,6 +247,11 @@ export function SettingsPage() {
               <Input value={settings.ffmpegPath} onChange={(_, data) => updateSetting('ffmpegPath', data.value || '')} style={{ flex: 1 }} />
               <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('ffmpegPath')} />
             </div>
+            <div className={styles.downloadLinks}>
+              <Text size={100}>下载: </Text>
+              <Link href="https://www.gyan.dev/ffmpeg/builds/" target="_blank">FFmpeg (gyan.dev)</Link>
+              <Link href="https://github.com/BtbN/FFmpeg-Builds/releases" target="_blank">FFmpeg (GitHub)</Link>
+            </div>
           </Field>
 
           <Divider style={{ margin: '12px 0' }} />
@@ -123,6 +261,10 @@ export function SettingsPage() {
             <div className={styles.pathRow}>
               <Input value={settings.aria2cPath} onChange={(_, data) => updateSetting('aria2cPath', data.value || '')} style={{ flex: 1 }} />
               <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('aria2cPath')} />
+            </div>
+            <div className={styles.downloadLinks}>
+              <Text size={100}>下载: </Text>
+              <Link href="https://github.com/aria2/aria2/releases" target="_blank">aria2 GitHub</Link>
             </div>
           </Field>
 

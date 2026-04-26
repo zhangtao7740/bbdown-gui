@@ -2,38 +2,13 @@ import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs/promises'
 import { ToolDetector } from './ToolDetector'
-
-export interface PostProcessRule {
-  id: string
-  name: string
-  enabled: boolean
-  actions: PostProcessAction[]
-}
-
-export type PostProcessAction =
-  | { type: 'rename'; options: RenameOptions }
-  | { type: 'move'; options: MoveOptions }
-  | { type: 'transcode'; options: TranscodeOptions }
-  | { type: 'deleteOriginal'; options?: object }
-
-export interface RenameOptions {
-  pattern: string
-  replaceSpaces?: boolean
-  toLowerCase?: boolean
-}
-
-export interface MoveOptions {
-  targetDir: string
-  createSubDir?: boolean
-}
-
-export interface TranscodeOptions {
-  format: 'mp4' | 'mkv' | 'copy' | 'mp3' | 'm4a' | 'flac'
-  codec: 'copy' | 'h264' | 'hevc' | 'aac' | 'mp3' | 'flac'
-  quality?: 'high' | 'medium' | 'low'
-  removeMetadata?: boolean
-  fastStart?: boolean
-}
+import type {
+  PostProcessAction,
+  PostProcessRule,
+  MoveOptions,
+  RenameOptions,
+  TranscodeOptions,
+} from './types'
 
 export interface ProcessProgress {
   percent: number

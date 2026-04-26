@@ -160,9 +160,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     }
     if (!loadedSettings.defaultWorkDir) {
+      const downloadPath = await api.util.getPath('downloads')
       loadedSettings = {
         ...loadedSettings,
-        defaultWorkDir: `${await api.util.getPath('downloads')}\\BBDown GUI`,
+        defaultWorkDir: [downloadPath, 'BBDown GUI'].join(window.navigator.platform.includes('Win') ? '\\' : '/'),
       }
     }
     set((state) => ({
@@ -223,7 +224,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedPages: options.selectedPages,
       filePattern: options.filePattern,
       multiFilePattern: options.multiFilePattern,
-      workDir: options.workDir || settings.defaultWorkDir || `${await api.util.getPath('downloads')}\\BBDown GUI`,
+      workDir: options.workDir || settings.defaultWorkDir || [await api.util.getPath('downloads'), 'BBDown GUI'].join(window.navigator.platform.includes('Win') ? '\\' : '/'),
       downloadDanmaku: options.downloadDanmaku,
       downloadSubtitle: options.downloadSubtitle,
       downloadCover: options.downloadCover,
@@ -242,8 +243,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       ffmpegPath: settings.ffmpegPath,
       aria2cPath: settings.aria2cPath,
     }
+    const downloadOptionsWithWorkDir = {
+      ...downloadOptions,
+      workDir: downloadOptions.workDir?.replace(/[\\/]$/, ''),
+    }
     const videoInfo = get().parsedVideoInfo
-    await api.task.add(url, title, downloadOptions, false, [], {
+    await api.task.add(url, title, downloadOptionsWithWorkDir, false, [], {
       bvid: videoInfo?.bvid,
       thumbnail: videoInfo?.cover,
       upName: videoInfo?.up?.name,

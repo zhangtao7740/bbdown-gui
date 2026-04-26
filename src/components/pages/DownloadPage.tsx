@@ -9,7 +9,6 @@ import {
   Image,
   Input,
   Option,
-  ProgressBar,
   Text,
   Tooltip,
   makeStyles,
@@ -17,12 +16,9 @@ import {
 import {
   ArrowDownload20Regular,
   CheckmarkCircle20Regular,
-  Delete20Regular,
   DismissCircle20Regular,
   FolderOpen20Regular,
-  Pause20Regular,
   Person20Regular,
-  Play20Regular,
   Search20Regular,
 } from '@fluentui/react-icons'
 import { api, isRunningInElectron } from '@/lib/runtime'
@@ -65,18 +61,6 @@ function formatDuration(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`
 }
 
-function getStatus(status: string): { color: string; label: string } {
-  switch (status) {
-    case 'completed': return { color: '#107C10', label: '已完成' }
-    case 'downloading': return { color: '#0078D4', label: '下载中' }
-    case 'processing': return { color: '#0078D4', label: '处理中' }
-    case 'waiting': return { color: '#666666', label: '等待中' }
-    case 'paused': return { color: '#666666', label: '已暂停' }
-    case 'cancelled': return { color: '#666666', label: '已取消' }
-    case 'failed': return { color: '#D13438', label: '失败' }
-    default: return { color: '#666666', label: status }
-  }
-}
 
 export function DownloadPage() {
   const styles = useStyles()
@@ -87,7 +71,6 @@ export function DownloadPage() {
     parseUrl,
     parsedVideoInfo,
     startDownload,
-    tasks,
     tools,
     refreshTools,
     settings,
@@ -95,9 +78,7 @@ export function DownloadPage() {
     saveSettings,
     downloadOptions,
     updateDownloadOption,
-    taskLogs,
   } = useAppStore()
-  const [expandedLogTask, setExpandedLogTask] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
   useEffect(() => {
@@ -128,22 +109,29 @@ export function DownloadPage() {
 
   const validateBeforeDownload = () => {
     const errors: string[] = []
-    if (!tools.bbdown?.exists) errors.push('未检测到 BBDown，请先在下载页或设置页选择 BBDown.exe。')
-    if (!downloadOptions.workDir.trim()) errors.push('请先选择保存目录。')
+    if (!tools.bbdown?.exists) errors.push('未检测到 BBDown，请在“设置”页配置其路径。')
+    if (!downloadOptions.workDir?.trim()) errors.push('请先选择保存目录。')
     if (downloadOptions.videoOnly && downloadOptions.audioOnly) errors.push('“仅视频”和“仅音频”不能同时启用。')
-    if (downloadOptions.selectedPages.length === 0 && (parsedVideoInfo?.pages?.length || 0) > 0) errors.push('至少选择一个分 P。')
+    if (!parsedVideoInfo) errors.push('请先解析视频信息。')
+    if (parsedVideoInfo && parsedVideoInfo.pages?.length > 0 && downloadOptions.selectedPages.length === 0) errors.push('至少选择一个分 P。')
     if (downloadOptions.useAria2c && !tools.aria2c?.exists) errors.push('已启用 aria2c，但未检测到 aria2c。')
     return errors
   }
 
   const handleSelectWorkDir = async () => {
     const selected = await api.util.selectDirectory()
-    if (selected) updateDownloadOption('workDir', selected)
+    if (selected) {
+      updateDownloadOption('workDir', selected)
+      // 如果没有默认下载目录，提示用户是否保存为默认
+      if (!settings.defaultWorkDir) {
+        updateSetting('defaultWorkDir', selected)
+        await saveSettings()
+      }
+    }
   }
 
   const handleSelectTool = async (toolName: 'bbdown' | 'ffmpeg' | 'aria2c') => {
     const selected = await api.util.selectFile([
-      { name: toolName === 'bbdown' ? 'BBDown.exe' : `${toolName}.exe`, extensions: ['exe'] },
       { name: 'Executable', extensions: ['exe'] },
       { name: 'All Files', extensions: ['*'] },
     ])
@@ -160,8 +148,6 @@ export function DownloadPage() {
     updateDownloadOption('selectedPages', current.includes(pageNumber) ? current.filter((page) => page !== pageNumber) : [...current, pageNumber])
   }
 
-  const selectedCount = downloadOptions.selectedPages.length
-  const totalPages = parsedVideoInfo?.pages?.length ?? 0
 
   return (
     <div className={styles.container}>
@@ -200,104 +186,69 @@ export function DownloadPage() {
         </div>
       </div>
 
-      {parsedVideoInfo && (
-        <Card className={styles.previewCard}>
-          <div className={styles.previewHeader}>
-            {parsedVideoInfo.cover ? (
-              <Image className={styles.previewCover} src={parsedVideoInfo.cover} alt={parsedVideoInfo.title} fit="cover" />
-            ) : (
-              <div className={styles.previewCover} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Text size={200} style={{ color: 'var(--colorNeutralForeground3)' }}>无封面</Text>
-              </div>
-            )}
-            <div className={styles.previewInfo}>
-              <Text className={styles.previewTitle}>{parsedVideoInfo.title}</Text>
-              <div className={styles.previewMeta}>
-                {parsedVideoInfo.up && <span><Person20Regular /> {parsedVideoInfo.up.name}</span>}
-                {parsedVideoInfo.bvid && <span>{parsedVideoInfo.bvid}</span>}
-                {parsedVideoInfo.duration > 0 && <span>{formatDuration(parsedVideoInfo.duration)}</span>}
-                {parsedVideoInfo.partition && <span>{parsedVideoInfo.partition}</span>}
-              </div>
-              {totalPages > 1 && (
-                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Badge appearance="filled" color="brand" size="small">已选 {selectedCount}/{totalPages} P</Badge>
-                  <Button size="small" appearance="subtle" onClick={() => updateDownloadOption('selectedPages', parsedVideoInfo.pages.map((page) => page.pageNumber))}>全选</Button>
-                  <Button size="small" appearance="subtle" onClick={() => updateDownloadOption('selectedPages', [])}>全不选</Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {parsedVideoInfo.pages?.length > 1 && (
-            <div className={styles.pageGrid}>
-              {parsedVideoInfo.pages.map((page) => (
-                <div
-                  key={page.pageNumber}
-                  className={styles.pageItem}
-                  onClick={() => togglePage(page.pageNumber)}
-                  style={{ backgroundColor: downloadOptions.selectedPages.includes(page.pageNumber) ? 'var(--colorBrandBackground2)' : 'transparent' }}
-                >
-                  <Checkbox checked={downloadOptions.selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} />
-                  <span className={styles.pageInfo}>P{page.pageNumber} {page.title}</span>
-                  <Text size={100}>{formatDuration(page.duration)}</Text>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
       <div className={styles.contentGrid}>
         <div>
-          <Text weight="semibold" size={400} block style={{ marginBottom: '12px' }}>下载队列 ({tasks.length})</Text>
-          {tasks.map((task) => {
-            const status = getStatus(task.status)
-            const logs = taskLogs[task.id] || task.logs || []
-            const isLogExpanded = expandedLogTask === task.id
-            const assetTypes = [
-              !task.options?.audioOnly && '视频',
-              !task.options?.videoOnly && '音频',
-              task.options?.downloadSubtitle && '字幕',
-              task.options?.downloadDanmaku && '弹幕',
-              task.options?.downloadCover && '封面',
-            ].filter(Boolean).join(' / ')
-
-            return (
-              <Card key={task.id} className={styles.taskItem}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text weight="semibold" block truncate>{task.title}</Text>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                      <span className={styles.statusBadge} style={{ backgroundColor: `${status.color}20`, color: status.color }}>{status.label}</span>
-                      <Text size={200}>{assetTypes}</Text>
-                      {task.options?.selectedPages?.length ? <Text size={200}>分 P：{task.options.selectedPages.length}</Text> : null}
-                      {task.speed ? <Text size={200}>速度：{task.speed}</Text> : null}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {(task.status === 'waiting' || task.status === 'paused' || task.status === 'failed') && <Tooltip content="开始" relationship="label"><Button appearance="subtle" icon={<Play20Regular />} onClick={() => api.task.start(task.id)} /></Tooltip>}
-                    {(task.status === 'downloading' || task.status === 'processing') && <Tooltip content="暂停" relationship="label"><Button appearance="subtle" icon={<Pause20Regular />} onClick={() => api.task.stop(task.id)} /></Tooltip>}
-                    {task.status === 'completed' && <Tooltip content="打开文件夹" relationship="label"><Button appearance="subtle" icon={<FolderOpen20Regular />} onClick={() => api.util.openDirectory(task.outputPath || task.options?.workDir || '')} /></Tooltip>}
-                    <Tooltip content="删除队列记录" relationship="label"><Button appearance="subtle" icon={<Delete20Regular />} onClick={() => api.task.remove(task.id)} /></Tooltip>
-                    <Button appearance="subtle" onClick={() => setExpandedLogTask(isLogExpanded ? null : task.id)}>{isLogExpanded ? '隐藏日志' : '日志'}</Button>
-                  </div>
-                </div>
-                {(task.status === 'downloading' || task.status === 'processing') && <ProgressBar value={task.progress / 100} style={{ marginTop: '8px' }} />}
-                {isLogExpanded && (
-                  <div className={styles.logPanel}>
-                    {logs.length === 0 && <Text size={200}>暂无日志</Text>}
-                    {logs.slice(-100).map((entry, index) => (
-                      <div key={`${entry.timestamp}-${index}`} className={styles.logLine}>
-                        <span className={styles.logTime}>{new Date(entry.timestamp).toLocaleTimeString()}</span>
-                        <span className={`${styles.logSource} ${entry.level === 'error' ? styles.logErr : ''}`}>{entry.source}</span>
-                        <span className={entry.level === 'error' ? styles.logErr : undefined}>{entry.message}</span>
-                      </div>
-                    ))}
+          {parsedVideoInfo && (
+            <Card className={styles.previewCard}>
+              <div className={styles.previewHeader}>
+                {parsedVideoInfo.cover ? (
+                  <a href={parsedVideoInfo.cover} target="_blank" rel="noreferrer">
+                    <Image className={styles.previewCover} src={parsedVideoInfo.cover} alt={parsedVideoInfo.title} />
+                  </a>
+                ) : (
+                  <div className={styles.previewCover} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text size={200} style={{ color: 'var(--colorNeutralForeground3)' }}>无封面</Text>
                   </div>
                 )}
-              </Card>
-            )
-          })}
+                <div className={styles.previewInfo}>
+                  <Text className={styles.previewTitle} size={500}>{parsedVideoInfo.title}</Text>
+                  <div className={styles.previewMeta}>
+                    {parsedVideoInfo.up && <span><Person20Regular /> {parsedVideoInfo.up.name}</span>}
+                    {parsedVideoInfo.bvid && <span>{parsedVideoInfo.bvid}</span>}
+                    {parsedVideoInfo.duration > 0 && <span>{formatDuration(parsedVideoInfo.duration)}</span>}
+                    {parsedVideoInfo.partition && <span>{parsedVideoInfo.partition}</span>}
+                  </div>
+                  <div style={{ marginTop: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <Button appearance="primary" icon={<ArrowDownload20Regular />} onClick={handleDownload} disabled={downloadOptions.selectedPages.length === 0}>
+                      开始下载 ({downloadOptions.selectedPages.length} 个分 P)
+                    </Button>
+                    {parsedVideoInfo.pages?.length > 1 && (
+                      <>
+                        <Badge appearance="filled" color="brand" size="small">已选 {downloadOptions.selectedPages.length}/{parsedVideoInfo.pages.length} P</Badge>
+                        <Button size="small" appearance="subtle" onClick={() => updateDownloadOption('selectedPages', parsedVideoInfo.pages.map((p) => p.pageNumber))}>全选</Button>
+                        <Button size="small" appearance="subtle" onClick={() => updateDownloadOption('selectedPages', [])}>全不选</Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {parsedVideoInfo.pages?.length > 1 && (
+                <div className={styles.pageGrid}>
+                  {parsedVideoInfo.pages.map((page) => (
+                    <div
+                      key={page.pageNumber}
+                      className={styles.pageItem}
+                      onClick={() => togglePage(page.pageNumber)}
+                      style={{ backgroundColor: downloadOptions.selectedPages.includes(page.pageNumber) ? 'var(--colorBrandBackground2)' : 'transparent' }}
+                    >
+                      <Checkbox checked={downloadOptions.selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} />
+                      <span className={styles.pageInfo}>P{page.pageNumber} {page.title}</span>
+                      <Text size={100}>{formatDuration(page.duration)}</Text>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {!parsedVideoInfo && (
+            <Card style={{ padding: '60px', textAlign: 'center', color: 'var(--colorNeutralForeground3)' }}>
+              <Search20Regular style={{ fontSize: '48px', marginBottom: '16px' }} />
+              <Text size={400} block>解析视频信息</Text>
+              <Text size={200}>在上方输入框输入 B 站视频链接并点击解析</Text>
+            </Card>
+          )}
         </div>
 
         <div>

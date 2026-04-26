@@ -28,8 +28,6 @@ export class TaskManager extends EventEmitter {
     postProcessRules: PostProcessRule[] = [],
     metadata: Partial<DownloadTask> = {}
   ): DownloadTask {
-    void enablePostProcess
-    void postProcessRules
     const task: DownloadTask = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       url,
@@ -42,8 +40,8 @@ export class TaskManager extends EventEmitter {
       eta: '',
       createdAt: new Date(),
       options,
-      enablePostProcess: false,
-      postProcessRules: [],
+      enablePostProcess,
+      postProcessRules,
       bvid: metadata.bvid,
       thumbnail: metadata.thumbnail,
       upName: metadata.upName,
@@ -63,7 +61,11 @@ export class TaskManager extends EventEmitter {
   }
 
   getAllTasks(): DownloadTask[] {
-    return Array.from(this.tasks.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    return Array.from(this.tasks.values()).sort((a, b) => {
+      const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime()
+      const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime()
+      return timeB - timeA
+    })
   }
 
   updateTask(taskId: string, updates: Partial<DownloadTask>): void {

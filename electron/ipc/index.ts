@@ -159,6 +159,20 @@ function setupBBDownHandlers(): void {
     taskManager.setBBDownPath(path)
     return true
   })
+
+  ipcMain.handle('bbdown:login', async (event) => {
+    try {
+      await bbdown.login((qrcode) => {
+        event.sender.send('bbdown:login-qrcode', qrcode)
+      })
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '登录失败',
+      }
+    }
+  })
 }
 
 function setupUtilityHandlers(): void {

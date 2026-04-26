@@ -49,6 +49,8 @@ function createBrowserStub(): ElectronAPI {
       version: () => Promise.resolve({ success: false, error: browserModeMessage }),
       buildArgs: () => Promise.resolve([]),
       setPath: noopBool,
+      login: () => Promise.resolve({ success: false, error: browserModeMessage }),
+      onQRCode: () => () => {},
     },
     task: {
       add: noop as unknown as ElectronAPI['task']['add'],

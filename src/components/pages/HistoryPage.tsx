@@ -17,6 +17,13 @@ import {
   Text,
   Tooltip,
   makeStyles,
+  Dialog,
+  DialogTrigger,
+  DialogSurface,
+  DialogTitle,
+  DialogContent,
+  DialogBody,
+  DialogActions,
 } from '@fluentui/react-components'
 import {
   ArrowClockwise20Regular,
@@ -145,6 +152,10 @@ export function HistoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter])
 
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false)
+  const [renameArtifact, setRenameArtifact] = useState<{ jobId: string; artifact: HistoryArtifact } | null>(null)
+  const [newFileName, setNewFileName] = useState('')
+
   const expandedJobs = useMemo(() => expanded, [expanded])
 
   const replaceJob = (job?: HistoryJob | null) => {
@@ -162,16 +173,19 @@ export function HistoryPage() {
   }
 
   const handleClearAll = async () => {
-    if (!confirm('确定要清空所有历史记录吗？不会删除本地文件。')) return
+    setIsClearDialogOpen(false)
     await api.history.clear()
     await loadHistory()
   }
 
-  const handleRename = async (jobId: string, artifact: HistoryArtifact) => {
-    const value = prompt('输入新的文件名', artifact.fileName)
-    if (!value || value === artifact.fileName) return
-    replaceJob(await api.artifact.rename(jobId, artifact.id, value))
+  const handleRename = async () => {
+    if (!renameArtifact || !newFileName || newFileName === renameArtifact.artifact.fileName) {
+      setRenameArtifact(null)
+      return
+    }
+    replaceJob(await api.artifact.rename(renameArtifact.jobId, renameArtifact.artifact.id, newFileName))
     await refreshStats()
+    setRenameArtifact(null)
   }
 
   const handlePostprocess = async (jobId: string, artifact: HistoryArtifact, kind: PostprocessKind) => {
@@ -219,7 +233,23 @@ export function HistoryPage() {
             <Option value="failed">失败</Option>
           </Dropdown>
           <Button appearance="subtle" icon={<ArrowClockwise20Regular />} onClick={loadHistory}>刷新</Button>
-          <Button appearance="subtle" icon={<Delete20Regular />} onClick={handleClearAll}>清空</Button>
+          <Dialog open={isClearDialogOpen} onOpenChange={(_, data) => setIsClearDialogOpen(data.open)}>
+            <DialogTrigger disableButtonEnhancement>
+              <Button appearance="subtle" icon={<Delete20Regular />}>清空</Button>
+            </DialogTrigger>
+            <DialogSurface>
+              <DialogBody>
+                <DialogTitle>清空历史记录</DialogTitle>
+                <DialogContent>确定要清空所有历史记录吗？这不会删除本地磁盘上的实际文件。</DialogContent>
+                <DialogActions>
+                  <DialogTrigger disableButtonEnhancement>
+                    <Button appearance="secondary">取消</Button>
+                  </DialogTrigger>
+                  <Button appearance="primary" onClick={handleClearAll}>确定</Button>
+                </DialogActions>
+              </DialogBody>
+            </DialogSurface>
+          </Dialog>
         </div>
       </div>
 
@@ -292,7 +322,16 @@ export function HistoryPage() {
                             <TableCell className={styles.actionCell}>
                               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                 <Button size="small" icon={<Open20Regular />} disabled={!artifact.exists} onClick={() => api.util.openDirectory(artifact.path)}>打开</Button>
-                                <Button size="small" disabled={!artifact.exists} onClick={() => handleRename(job.id, artifact)}>重命名</Button>
+                                <Button
+                                  size="small"
+                                  disabled={!artifact.exists}
+                                  onClick={() => {
+                                    setRenameArtifact({ jobId: job.id, artifact })
+                                    setNewFileName(artifact.fileName)
+                                  }}
+                                >
+                                  重命名
+                                </Button>
                                 <Button size="small" disabled={!artifact.exists} onClick={async () => { replaceJob(await api.artifact.move(job.id, artifact.id)); await refreshStats() }}>移动</Button>
                                 <Button size="small" onClick={async () => { replaceJob(await api.artifact.relocate(job.id, artifact.id)); await refreshStats() }}>重新定位</Button>
                                 <Button size="small" onClick={async () => { replaceJob(await api.artifact.remove(job.id, artifact.id)); await refreshStats() }}>移除记录</Button>
@@ -323,6 +362,25 @@ export function HistoryPage() {
           )
         })}
       </div>
+
+      <Dialog open={!!renameArtifact} onOpenChange={(_, data) => !data.open && setRenameArtifact(null)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>重命名文件</DialogTitle>
+            <DialogContent>
+              <div style={{ padding: '10px 0' }}>
+                <Field label="新文件名">
+                  <Input value={newFileName} onChange={(_, data) => setNewFileName(data.value)} style={{ width: '100%' }} />
+                </Field>
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setRenameArtifact(null)}>取消</Button>
+              <Button appearance="primary" onClick={handleRename}>确定</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   )
 }
