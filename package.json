@@ -1,7 +1,17 @@
 {
   "name": "bbdown-gui",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "license": "MIT",
+  "author": "zhangtao7740",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhangtao7740/bbdown-gui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhangtao7740/bbdown-gui/issues"
+  },
+  "homepage": "https://github.com/zhangtao7740/bbdown-gui#readme",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
