@@ -80,6 +80,7 @@ function showMainWindow(): void {
 
 function createWindow() {
   createTray()
+  const preloadPath = path.join(__dirname, 'preload.cjs')
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -90,7 +91,7 @@ function createWindow() {
     backgroundColor: '#ffffff',
     backgroundMaterial: 'mica',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: fs.existsSync(preloadPath) ? preloadPath : path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
