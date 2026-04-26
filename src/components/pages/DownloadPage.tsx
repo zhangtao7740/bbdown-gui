@@ -64,6 +64,7 @@ function formatDuration(seconds: number): string {
 
 export function DownloadPage() {
   const styles = useStyles()
+  const isElectron = isRunningInElectron()
   const {
     urlInput,
     setUrlInput,
@@ -119,6 +120,7 @@ export function DownloadPage() {
   }
 
   const handleSelectWorkDir = async () => {
+    if (!isElectron) return
     const selected = await api.util.selectDirectory()
     if (selected) {
       updateDownloadOption('workDir', selected)
@@ -131,6 +133,7 @@ export function DownloadPage() {
   }
 
   const handleSelectTool = async (toolName: 'bbdown' | 'ffmpeg' | 'aria2c') => {
+    if (!isElectron) return
     const selected = await api.util.selectFile([
       { name: 'Executable', extensions: ['exe'] },
       { name: 'All Files', extensions: ['*'] },
@@ -151,7 +154,7 @@ export function DownloadPage() {
 
   return (
     <div className={styles.container}>
-      {!isRunningInElectron() && (
+      {!isElectron && (
         <div className={styles.browserBanner}>
           <Text size={200}>浏览器预览模式：只能查看界面示例，真实解析、下载、扫描和后处理请在 Electron 窗口中运行。</Text>
         </div>
@@ -262,8 +265,8 @@ export function DownloadPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <Text size={200}>{tools[toolName]?.exists ? `v${tools[toolName].version}` : toolName === 'aria2c' ? '可选' : '未检测到'}</Text>
-                  <Tooltip content="手动选择执行文件" relationship="label">
-                    <Button appearance="subtle" size="small" icon={<FolderOpen20Regular />} onClick={() => handleSelectTool(toolName)} />
+                  <Tooltip content={isElectron ? '手动选择执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+                    <Button appearance="subtle" size="small" icon={<FolderOpen20Regular />} onClick={() => handleSelectTool(toolName)} disabled={!isElectron} />
                   </Tooltip>
                 </div>
               </div>
@@ -280,7 +283,9 @@ export function DownloadPage() {
             <Field label="保存到">
               <div className={styles.pathRow}>
                 <Input value={downloadOptions.workDir} onChange={(_, data) => updateDownloadOption('workDir', data.value)} style={{ flex: 1 }} />
-                <Button icon={<FolderOpen20Regular />} onClick={handleSelectWorkDir} />
+                <Tooltip content={isElectron ? '选择保存目录' : '浏览器预览模式不支持原生目录选择'} relationship="label">
+                  <Button icon={<FolderOpen20Regular />} onClick={handleSelectWorkDir} disabled={!isElectron} />
+                </Tooltip>
               </div>
             </Field>
             <Field label="API 模式">

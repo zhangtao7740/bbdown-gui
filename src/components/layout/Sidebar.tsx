@@ -51,7 +51,7 @@ export function Sidebar({ selectedTab, onTabChange }: SidebarProps) {
 
       <div style={{ marginTop: 'auto', padding: '16px 8px' }}>
         <div style={{ fontSize: '11px', color: 'var(--colorNeutralForeground3)' }}>
-          BBDown GUI v0.1.0
+          BBDown GUI v0.1.1
         </div>
       </div>
     </div>

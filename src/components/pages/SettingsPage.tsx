@@ -20,6 +20,7 @@ import {
   DialogActions,
   Link,
   Spinner,
+  Tooltip,
 } from '@fluentui/react-components'
 import {
   FolderOpen20Regular,
@@ -30,7 +31,7 @@ import {
   Person20Regular,
 } from '@fluentui/react-icons'
 import { useAppStore } from '@/store/appStore'
-import { api } from '@/lib/runtime'
+import { api, isRunningInElectron } from '@/lib/runtime'
 
 const useStyles = makeStyles({
   container: { padding: '20px', height: '100%', overflowY: 'auto' },
@@ -93,6 +94,7 @@ function ToolStatusRow({ name, tool }: { name: string; tool?: { exists: boolean;
 
 export function SettingsPage() {
   const styles = useStyles()
+  const isElectron = isRunningInElectron()
   const { settings, updateSetting, saveSettings, tools, refreshTools } = useAppStore()
   const [saved, setSaved] = useState(false)
 
@@ -108,6 +110,7 @@ export function SettingsPage() {
   }, [refreshTools])
 
   const handleLogin = async () => {
+    if (!isElectron) return
     if (loginRunningRef.current) return
     loginRunningRef.current = true
     setLoginStatus('scanning')
@@ -154,6 +157,7 @@ export function SettingsPage() {
   }, [])
 
   const handleSelectPath = async (settingKey: 'bbdownPath' | 'ffmpegPath' | 'aria2cPath' | 'defaultWorkDir') => {
+    if (!isElectron) return
     const selected = settingKey === 'defaultWorkDir'
       ? await api.util.selectDirectory()
       : await api.util.selectFile([
@@ -185,12 +189,14 @@ export function SettingsPage() {
             if (!data.open) void cancelLogin()
           }}>
             <DialogTrigger disableButtonEnhancement>
-              <Button icon={<Person20Regular />} size="small" onClick={() => {
-                setIsLoginDialogOpen(true)
-                handleLogin()
-              }}>
-                B站扫码登录
-              </Button>
+              <Tooltip content={isElectron ? '调用 BBDown 登录流程' : '浏览器预览模式不支持扫码登录'} relationship="label">
+                <Button icon={<Person20Regular />} size="small" disabled={!isElectron} onClick={() => {
+                  setIsLoginDialogOpen(true)
+                  handleLogin()
+                }}>
+                  B站扫码登录
+                </Button>
+              </Tooltip>
             </DialogTrigger>
             <DialogSurface>
               <DialogBody>
@@ -246,7 +252,9 @@ export function SettingsPage() {
                 style={{ flex: 1 }}
                 placeholder="例如: C:\Tools\BBDown.exe"
               />
-              <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('bbdownPath')} />
+              <Tooltip content={isElectron ? '选择 BBDown.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('bbdownPath')} disabled={!isElectron} />
+              </Tooltip>
             </div>
             <div className={styles.downloadLinks}>
               <Text size={100}>下载: </Text>
@@ -260,7 +268,9 @@ export function SettingsPage() {
           <Field label="FFmpeg 路径">
             <div className={styles.pathRow}>
               <Input value={settings.ffmpegPath} onChange={(_, data) => updateSetting('ffmpegPath', data.value || '')} style={{ flex: 1 }} />
-              <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('ffmpegPath')} />
+              <Tooltip content={isElectron ? '选择 ffmpeg.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('ffmpegPath')} disabled={!isElectron} />
+              </Tooltip>
             </div>
             <div className={styles.downloadLinks}>
               <Text size={100}>下载: </Text>
@@ -275,7 +285,9 @@ export function SettingsPage() {
           <Field label="aria2c 路径">
             <div className={styles.pathRow}>
               <Input value={settings.aria2cPath} onChange={(_, data) => updateSetting('aria2cPath', data.value || '')} style={{ flex: 1 }} />
-              <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('aria2cPath')} />
+              <Tooltip content={isElectron ? '选择 aria2c.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('aria2cPath')} disabled={!isElectron} />
+              </Tooltip>
             </div>
             <div className={styles.downloadLinks}>
               <Text size={100}>下载: </Text>
@@ -295,7 +307,9 @@ export function SettingsPage() {
           <Field label="默认下载目录">
             <div className={styles.pathRow}>
               <Input value={settings.defaultWorkDir} onChange={(_, data) => updateSetting('defaultWorkDir', data.value || '')} style={{ flex: 1 }} />
-              <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('defaultWorkDir')} />
+              <Tooltip content={isElectron ? '选择默认下载目录' : '浏览器预览模式不支持原生目录选择'} relationship="label">
+                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('defaultWorkDir')} disabled={!isElectron} />
+              </Tooltip>
             </div>
           </Field>
           <Field label="最大同时下载数">
