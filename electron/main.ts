@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, shell, Tray, Menu, nativeImage } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initIpcHandlers } from './ipc/index'
@@ -9,15 +10,38 @@ const __dirname = path.dirname(__filename)
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let ipcInitialized = false
 
 // process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
-function createTray() {
-  const iconPath = path.join(__dirname, '../public/favicon.ico') // 假设有图标
+function findAssetPath(fileName: string): string | null {
+  const candidates = [
+    path.join(__dirname, '../dist', fileName),
+    path.join(__dirname, '../public', fileName),
+    path.join(process.cwd(), 'public', fileName),
+  ]
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null
+}
+
+function createTray(): boolean {
+  if (tray) return true
+
+  const iconPath = findAssetPath('tray.png') || findAssetPath('icon.ico') || findAssetPath('icon.png')
+  if (!iconPath) {
+    console.warn('Tray icon not found; close-to-tray is disabled.')
+    return false
+  }
+
   try {
-    tray = new Tray(iconPath)
+    const image = nativeImage.createFromPath(iconPath)
+    if (image.isEmpty()) {
+      console.warn(`Tray icon is empty: ${iconPath}`)
+      return false
+    }
+
+    tray = new Tray(image)
     const contextMenu = Menu.buildFromTemplate([
-      { label: '显示窗口', click: () => mainWindow?.show() },
+      { label: '显示窗口', click: () => showMainWindow() },
       { type: 'separator' },
       {
         label: '退出',
@@ -34,17 +58,27 @@ function createTray() {
         if (mainWindow.isVisible()) {
           mainWindow.focus()
         } else {
-          mainWindow.show()
+            showMainWindow()
         }
       }
     })
+    return true
   } catch (e) {
     console.error('Failed to create tray:', e)
+    tray = null
+    return false
   }
 }
 
+function showMainWindow(): void {
+  mainWindow?.show()
+  if (mainWindow?.isMinimized()) {
+    mainWindow.restore()
+  }
+  mainWindow?.focus()
+}
+
 function createWindow() {
-  initIpcHandlers()
   createTray()
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -76,7 +110,7 @@ function createWindow() {
   })
 
   mainWindow.on('close', (event) => {
-    if (!isQuitting) {
+    if (!isQuitting && tray) {
       event.preventDefault()
       mainWindow?.hide()
       return false
@@ -93,7 +127,13 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  if (!ipcInitialized) {
+    initIpcHandlers()
+    ipcInitialized = true
+  }
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

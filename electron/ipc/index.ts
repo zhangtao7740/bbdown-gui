@@ -173,6 +173,11 @@ function setupBBDownHandlers(): void {
       }
     }
   })
+
+  ipcMain.handle('bbdown:cancelLogin', async () => {
+    bbdown.cancelLogin()
+    return true
+  })
 }
 
 function setupUtilityHandlers(): void {

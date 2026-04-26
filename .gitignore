@@ -16,6 +16,7 @@ dist-ssr
 *.data
 *.exe
 *.blockmap
+qrcode*.png
 builder-debug.yml
 builder-effective-config.yaml
 

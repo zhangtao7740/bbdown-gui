@@ -1,6 +1,6 @@
 {
   "name": "bbdown-gui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "license": "MIT",
   "author": "zhangtao7740",
@@ -33,6 +33,7 @@
       "dist-electron/**/*"
     ],
     "win": {
+      "icon": "public/icon.ico",
       "target": [
         "nsis",
         "portable"

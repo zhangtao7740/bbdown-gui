@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Card,
   Text,
@@ -100,46 +100,58 @@ export function SettingsPage() {
   const [loginStatus, setLoginStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle')
   const [qrcode, setQrcode] = useState('')
   const [loginError, setLoginError] = useState('')
+  const loginUnsubscribeRef = useRef<(() => void) | null>(null)
+  const loginRunningRef = useRef(false)
 
   useEffect(() => {
     refreshTools()
   }, [refreshTools])
 
   const handleLogin = async () => {
+    if (loginRunningRef.current) return
+    loginRunningRef.current = true
     setLoginStatus('scanning')
     setQrcode('')
     setLoginError('')
 
-    let isSubscribed = true
-    const unsubscribe = api.bbdown.onQRCode((code: string) => {
-      if (isSubscribed) {
-        setQrcode((prev) => prev + code + '\n')
-      }
+    loginUnsubscribeRef.current?.()
+    loginUnsubscribeRef.current = api.bbdown.onQRCode((code: string) => {
+      setQrcode((prev) => prev + code + '\n')
     })
 
     try {
       const result = await api.bbdown.login()
-      if (isSubscribed) {
-        if (result.success) {
-          setLoginStatus('success')
-          setTimeout(() => {
-            if (isSubscribed) setIsLoginDialogOpen(false)
-          }, 2000)
-        } else {
-          setLoginStatus('error')
-          setLoginError(result.error || '登录失败')
-        }
+      if (result.success) {
+        setLoginStatus('success')
+        setTimeout(() => setIsLoginDialogOpen(false), 2000)
+      } else {
+        setLoginStatus('error')
+        setLoginError(result.error || '登录失败')
       }
     } catch (err) {
-      if (isSubscribed) {
-        setLoginStatus('error')
-        setLoginError(err instanceof Error ? err.message : '未知错误')
-      }
+      setLoginStatus('error')
+      setLoginError(err instanceof Error ? err.message : '未知错误')
     } finally {
-      isSubscribed = false
-      unsubscribe()
+      loginRunningRef.current = false
+      loginUnsubscribeRef.current?.()
+      loginUnsubscribeRef.current = null
     }
   }
+
+  const cancelLogin = async () => {
+    if (loginRunningRef.current) {
+      await api.bbdown.cancelLogin()
+      loginRunningRef.current = false
+    }
+    loginUnsubscribeRef.current?.()
+    loginUnsubscribeRef.current = null
+  }
+
+  useEffect(() => {
+    return () => {
+      void cancelLogin()
+    }
+  }, [])
 
   const handleSelectPath = async (settingKey: 'bbdownPath' | 'ffmpegPath' | 'aria2cPath' | 'defaultWorkDir') => {
     const selected = settingKey === 'defaultWorkDir'
@@ -168,7 +180,10 @@ export function SettingsPage() {
       <div className={styles.section}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <Text size={400} style={{ fontWeight: 600 }}>工具路径</Text>
-          <Dialog open={isLoginDialogOpen} onOpenChange={(_, data) => setIsLoginDialogOpen(data.open)}>
+          <Dialog open={isLoginDialogOpen} onOpenChange={(_, data) => {
+            setIsLoginDialogOpen(data.open)
+            if (!data.open) void cancelLogin()
+          }}>
             <DialogTrigger disableButtonEnhancement>
               <Button icon={<Person20Regular />} size="small" onClick={() => {
                 setIsLoginDialogOpen(true)
@@ -214,7 +229,7 @@ export function SettingsPage() {
                 </DialogContent>
                 <DialogActions>
                   <DialogTrigger disableButtonEnhancement>
-                    <Button appearance="secondary">关闭</Button>
+                    <Button appearance="secondary" onClick={() => void cancelLogin()}>关闭</Button>
                   </DialogTrigger>
                 </DialogActions>
               </DialogBody>

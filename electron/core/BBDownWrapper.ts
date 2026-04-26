@@ -6,6 +6,7 @@ export class BBDownWrapper {
   private bbdownPath: string
   private workingDir: string
   private outputEncoding: string = 'utf-8'
+  private activeLoginProcess: ChildProcess | null = null
 
   constructor(bbdownPath?: string, workingDir?: string) {
     this.bbdownPath = bbdownPath || this.findBBDown()
@@ -441,15 +442,29 @@ export class BBDownWrapper {
   }
 
   async login(onQRCode: (qrcode: string) => void): Promise<void> {
+    if (this.activeLoginProcess) {
+      throw new Error('BBDown login is already running')
+    }
+
     return new Promise((resolve, reject) => {
+      let settled = false
       const proc = spawn(this.bbdownPath, ['login'], {
         cwd: this.workingDir,
         env: { ...process.env },
         windowsHide: true,
       })
+      this.activeLoginProcess = proc
 
       const stdoutDecoder = new TextDecoder(this.outputEncoding)
       let lastLine = ''
+
+      const finish = (error?: Error) => {
+        if (settled) return
+        settled = true
+        this.activeLoginProcess = null
+        if (error) reject(error)
+        else resolve()
+      }
 
       proc.stdout?.on('data', (data: Buffer) => {
         const text = stdoutDecoder.decode(data, { stream: true })
@@ -462,23 +477,30 @@ export class BBDownWrapper {
             onQRCode(line)
           }
           if (line.includes('登录成功')) {
-            resolve()
+            finish()
           }
         }
       })
 
       proc.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`BBDown login exited with code ${code}`))
+          finish(new Error(`BBDown login exited with code ${code}`))
         } else {
-          resolve()
+          finish()
         }
       })
 
       proc.on('error', (err) => {
-        reject(err)
+        finish(err)
       })
     })
+  }
+
+  cancelLogin(): void {
+    if (this.activeLoginProcess) {
+      this.activeLoginProcess.kill()
+      this.activeLoginProcess = null
+    }
   }
 
   setBBDownPath(path: string): void {
