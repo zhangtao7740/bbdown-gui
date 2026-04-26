@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
+import fsSync from 'fs'
+import fs from 'fs/promises'
 import type { DownloadOptions, ProcessOutput, VideoInfo } from './types'
 
 export class BBDownWrapper {
@@ -23,7 +25,26 @@ export class BBDownWrapper {
   }
 
   private findBBDown(): string {
-    return path.join(process.cwd(), '..', 'BBDown.exe')
+    const candidateBases = [
+      process.cwd(),
+      path.dirname(process.execPath),
+      process.resourcesPath,
+    ].filter(Boolean)
+
+    const candidates = new Set<string>()
+    for (const base of candidateBases) {
+      let current = base
+      for (let i = 0; i < 4; i += 1) {
+        candidates.add(path.join(current, 'BBDown.exe'))
+        current = path.dirname(current)
+      }
+    }
+
+    for (const candidate of candidates) {
+      if (fsSync.existsSync(candidate)) return candidate
+    }
+
+    return 'BBDown.exe'
   }
 
   buildArgs(options: Partial<DownloadOptions>): string[] {
@@ -448,15 +469,17 @@ export class BBDownWrapper {
 
     return new Promise((resolve, reject) => {
       let settled = false
+      const loginWorkingDir = path.dirname(this.bbdownPath)
       const proc = spawn(this.bbdownPath, ['login'], {
-        cwd: this.workingDir,
+        cwd: loginWorkingDir,
         env: { ...process.env },
         windowsHide: true,
       })
       this.activeLoginProcess = proc
 
       const stdoutDecoder = new TextDecoder(this.outputEncoding)
-      let lastLine = ''
+      const stderrDecoder = new TextDecoder(this.outputEncoding)
+      let qrcodeImageSent = false
 
       const finish = (error?: Error) => {
         if (settled) return
@@ -466,23 +489,31 @@ export class BBDownWrapper {
         else resolve()
       }
 
-      proc.stdout?.on('data', (data: Buffer) => {
-        const text = stdoutDecoder.decode(data, { stream: true })
-        const lines = (lastLine + text).split(/\r?\n/)
-        lastLine = lines.pop() || ''
-
-        for (const line of lines) {
-          // BBDown 登录时会输出二维码
-          if (line.includes('█') || line.includes('▄') || line.includes('▀')) {
-            onQRCode(line)
-          }
-          if (line.includes('登录成功')) {
-            finish()
-          }
+      const handleOutput = (text: string) => {
+        const cleaned = this.cleanTerminalOutput(text)
+        const image = this.readLoginQRCode(loginWorkingDir)
+        if (image && !qrcodeImageSent) {
+          qrcodeImageSent = true
+          onQRCode(image)
+        } else if (cleaned && !qrcodeImageSent) {
+          onQRCode(cleaned)
         }
+        if (this.isLoginSuccess(cleaned)) finish()
+      }
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        handleOutput(stdoutDecoder.decode(data, { stream: true }))
+      })
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        handleOutput(stderrDecoder.decode(data, { stream: true }))
       })
 
       proc.on('close', (code) => {
+        const remainingStdout = stdoutDecoder.decode()
+        const remainingStderr = stderrDecoder.decode()
+        if (remainingStdout) handleOutput(remainingStdout)
+        if (remainingStderr) handleOutput(remainingStderr)
         if (code !== 0) {
           finish(new Error(`BBDown login exited with code ${code}`))
         } else {
@@ -496,11 +527,74 @@ export class BBDownWrapper {
     })
   }
 
+  private cleanTerminalOutput(text: string): string {
+    const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g')
+    return text.replace(ansiPattern, '')
+  }
+
+  private isLoginSuccess(text: string): boolean {
+    return text.includes('登录成功') || text.toLowerCase().includes('login success')
+  }
+
+  private readLoginQRCode(loginWorkingDir: string): string | null {
+    const qrcodePath = path.join(loginWorkingDir, 'qrcode.png')
+    try {
+      if (!fsSync.existsSync(qrcodePath)) return null
+      const image = fsSync.readFileSync(qrcodePath)
+      return `data:image/png;base64,${image.toString('base64')}`
+    } catch {
+      return null
+    }
+  }
+
   cancelLogin(): void {
     if (this.activeLoginProcess) {
       this.activeLoginProcess.kill()
       this.activeLoginProcess = null
     }
+  }
+
+  private getCredentialCandidates(): string[] {
+    const candidates = [
+      path.join(path.dirname(this.bbdownPath), 'BBDown.data'),
+      path.join(this.workingDir, 'BBDown.data'),
+      path.join(process.cwd(), 'BBDown.data'),
+      path.join(process.cwd(), '..', 'BBDown.data'),
+      path.join(process.cwd(), '..', '..', 'BBDown.data'),
+    ]
+    return [...new Set(candidates)]
+  }
+
+  async getAccountStatus(): Promise<{ loggedIn: boolean; path?: string; updatedAt?: string }> {
+    for (const candidate of this.getCredentialCandidates()) {
+      try {
+        const stat = await fs.stat(candidate)
+        if (stat.isFile() && stat.size > 0) {
+          return {
+            loggedIn: true,
+            path: candidate,
+            updatedAt: stat.mtime.toISOString(),
+          }
+        }
+      } catch {
+        // Try next possible BBDown.data location.
+      }
+    }
+    return { loggedIn: false }
+  }
+
+  async logout(): Promise<string[]> {
+    const removed: string[] = []
+    for (const candidate of this.getCredentialCandidates()) {
+      try {
+        await fs.unlink(candidate)
+        removed.push(candidate)
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT') throw error
+      }
+    }
+    return removed
   }
 
   setBBDownPath(path: string): void {

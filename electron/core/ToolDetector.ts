@@ -53,6 +53,7 @@ export class ToolDetector {
     }
 
     const searchPaths = [
+      ...this.buildCandidatePaths(exeName),
       path.join(process.cwd(), '..', exeName),
       path.join(process.cwd(), exeName),
       exeName,
@@ -125,6 +126,25 @@ export class ToolDetector {
 
       process.on('error', reject)
     })
+  }
+
+  private static buildCandidatePaths(exeName: string): string[] {
+    const basePaths = [
+      process.cwd(),
+      path.dirname(process.execPath),
+      process.resourcesPath,
+    ].filter(Boolean)
+
+    const candidates = new Set<string>()
+    for (const basePath of basePaths) {
+      let current = basePath
+      for (let i = 0; i < 4; i += 1) {
+        candidates.add(path.join(current, exeName))
+        current = path.dirname(current)
+      }
+    }
+
+    return [...candidates]
   }
 
   static getToolPath(toolName: string): string | null {

@@ -50,6 +50,8 @@ function createBrowserStub(): ElectronAPI {
       buildArgs: () => Promise.resolve([]),
       setPath: noopBool,
       login: () => Promise.resolve({ success: false, error: browserModeMessage }),
+      accountStatus: () => Promise.resolve({ loggedIn: false }),
+      logout: () => Promise.resolve({ success: false, removed: [], error: browserModeMessage }),
       cancelLogin: noopBool,
       onQRCode: () => () => {},
     },

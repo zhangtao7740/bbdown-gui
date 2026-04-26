@@ -21,42 +21,19 @@ export function initIpcHandlers(): void {
   setupArtifactHandlers()
 }
 
+function broadcast(channel: string, ...args: unknown[]): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed()) win.webContents.send(channel, ...args)
+  })
+}
+
 function setupTaskEventForwarding(): void {
-  taskManager.on('task:updated', (task) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:updated', task)
-    })
-  })
-
-  taskManager.on('task:added', (task) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:added', task)
-    })
-  })
-
-  taskManager.on('task:removed', (taskId) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:removed', taskId)
-    })
-  })
-
-  taskManager.on('task:completed', (task) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:completed', task)
-    })
-  })
-
-  taskManager.on('task:failed', (task, error) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:failed', task, error)
-    })
-  })
-
-  taskManager.on('task:log', (taskId, entry) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('task:log', taskId, entry)
-    })
-  })
+  taskManager.on('task:updated', (task) => broadcast('task:updated', task))
+  taskManager.on('task:added', (task) => broadcast('task:added', task))
+  taskManager.on('task:removed', (taskId) => broadcast('task:removed', taskId))
+  taskManager.on('task:completed', (task) => broadcast('task:completed', task))
+  taskManager.on('task:failed', (task, error) => broadcast('task:failed', task, error))
+  taskManager.on('task:log', (taskId, entry) => broadcast('task:log', taskId, entry))
 }
 
 function setupTaskHandlers(): void {
@@ -68,64 +45,41 @@ function setupTaskHandlers(): void {
     enablePostProcess: boolean,
     postProcessRules?: PostProcessRule[],
     metadata?: Partial<DownloadTask>
-  ) => {
-    return taskManager.addTask(url, title, options, enablePostProcess, postProcessRules, metadata)
-  })
+  ) => taskManager.addTask(url, title, options, enablePostProcess, postProcessRules, metadata))
 
-  ipcMain.handle('task:get', async (_, taskId: string) => {
-    return taskManager.getTask(taskId)
-  })
-
-  ipcMain.handle('task:list', async () => {
-    return taskManager.getAllTasks()
-  })
-
+  ipcMain.handle('task:get', async (_, taskId: string) => taskManager.getTask(taskId))
+  ipcMain.handle('task:list', async () => taskManager.getAllTasks())
   ipcMain.handle('task:start', async (_, taskId: string) => {
     taskManager.startTask(taskId)
     return true
   })
-
   ipcMain.handle('task:stop', async (_, taskId: string) => {
     taskManager.stopTask(taskId)
     return true
   })
-
   ipcMain.handle('task:retry', async (_, taskId: string) => {
     taskManager.retryTask(taskId)
     return true
   })
-
-  ipcMain.handle('task:remove', async (_, taskId: string) => {
-    return taskManager.removeTask(taskId)
-  })
-
+  ipcMain.handle('task:remove', async (_, taskId: string) => taskManager.removeTask(taskId))
   ipcMain.handle('task:pauseAll', async () => {
     taskManager.pauseAll()
     return true
   })
-
   ipcMain.handle('task:resumeAll', async () => {
     taskManager.resumeAll()
     return true
   })
-
   ipcMain.handle('task:clearCompleted', async () => {
     taskManager.clearCompleted()
     return true
   })
-
-  ipcMain.handle('task:stats', async () => {
-    return taskManager.getStats()
-  })
-
+  ipcMain.handle('task:stats', async () => taskManager.getStats())
   ipcMain.handle('task:setMaxConcurrent', async (_, max: number) => {
     taskManager.setMaxConcurrent(max)
     return true
   })
-
-  ipcMain.handle('task:getLogs', async (_, taskId: string) => {
-    return taskManager.getTaskLogs(taskId)
-  })
+  ipcMain.handle('task:getLogs', async (_, taskId: string) => taskManager.getTaskLogs(taskId))
 }
 
 function setupBBDownHandlers(): void {
@@ -150,13 +104,11 @@ function setupBBDownHandlers(): void {
     }
   })
 
-  ipcMain.handle('bbdown:buildArgs', async (_, options: Partial<DownloadOptions>) => {
-    return bbdown.buildArgs(options)
-  })
+  ipcMain.handle('bbdown:buildArgs', async (_, options: Partial<DownloadOptions>) => bbdown.buildArgs(options))
 
-  ipcMain.handle('bbdown:setPath', async (_, path: string) => {
-    bbdown.setBBDownPath(path)
-    taskManager.setBBDownPath(path)
+  ipcMain.handle('bbdown:setPath', async (_, bbdownPath: string) => {
+    bbdown.setBBDownPath(bbdownPath)
+    taskManager.setBBDownPath(bbdownPath)
     return true
   })
 
@@ -174,6 +126,21 @@ function setupBBDownHandlers(): void {
     }
   })
 
+  ipcMain.handle('bbdown:accountStatus', async () => bbdown.getAccountStatus())
+
+  ipcMain.handle('bbdown:logout', async () => {
+    try {
+      const removed = await bbdown.logout()
+      return { success: true, removed }
+    } catch (error) {
+      return {
+        success: false,
+        removed: [],
+        error: error instanceof Error ? error.message : '登出失败',
+      }
+    }
+  })
+
   ipcMain.handle('bbdown:cancelLogin', async () => {
     bbdown.cancelLogin()
     return true
@@ -182,11 +149,14 @@ function setupBBDownHandlers(): void {
 
 function setupUtilityHandlers(): void {
   ipcMain.handle('util:checkTools', async () => {
-    return await ToolDetector.detectAll()
+    const tools = await ToolDetector.detectAll()
+    syncDetectedToolPaths(tools)
+    return tools
   })
-
   ipcMain.handle('util:checkTool', async (_, toolName: string) => {
-    return await ToolDetector.detectTool(toolName)
+    const tool = await ToolDetector.detectTool(toolName)
+    syncDetectedToolPaths({ [toolName]: tool })
+    return tool
   })
 
   ipcMain.handle('util:setToolPath', async (_, toolName: string, toolPath: string) => {
@@ -218,9 +188,7 @@ function setupUtilityHandlers(): void {
   })
 
   ipcMain.handle('util:selectDirectory', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-    })
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
   })
 
@@ -238,43 +206,27 @@ function setupUtilityHandlers(): void {
   })
 }
 
+function syncDetectedToolPaths(tools: Record<string, { exists: boolean; path: string }>): void {
+  if (tools.bbdown?.exists && tools.bbdown.path) {
+    bbdown.setBBDownPath(tools.bbdown.path)
+    taskManager.setBBDownPath(tools.bbdown.path)
+  }
+}
+
 function setupHistoryHandlers(): void {
-  ipcMain.handle('history:query', async (_, query?: HistoryQuery) => {
-    const historyManager = taskManager.getHistoryManager()
-    return await historyManager.query(query)
-  })
-
-  ipcMain.handle('history:getJob', async (_, id: string) => {
-    const historyManager = taskManager.getHistoryManager()
-    return await historyManager.getJob(id)
-  })
-
+  ipcMain.handle('history:query', async (_, query?: HistoryQuery) => taskManager.getHistoryManager().query(query))
+  ipcMain.handle('history:getJob', async (_, id: string) => taskManager.getHistoryManager().getJob(id))
   ipcMain.handle('history:delete', async (_, id: string) => {
-    const historyManager = taskManager.getHistoryManager()
-    await historyManager.delete(id)
+    await taskManager.getHistoryManager().delete(id)
     return true
   })
-
   ipcMain.handle('history:clear', async () => {
-    const historyManager = taskManager.getHistoryManager()
-    await historyManager.clear()
+    await taskManager.getHistoryManager().clear()
     return true
   })
-
-  ipcMain.handle('history:stats', async () => {
-    const historyManager = taskManager.getHistoryManager()
-    return await historyManager.getStats()
-  })
-
-  ipcMain.handle('history:storageInfo', async () => {
-    const historyManager = taskManager.getHistoryManager()
-    return await historyManager.getStorageInfo()
-  })
-
-  ipcMain.handle('history:rescanJob', async (_, id: string) => {
-    const historyManager = taskManager.getHistoryManager()
-    return await historyManager.rescanJob(id)
-  })
+  ipcMain.handle('history:stats', async () => taskManager.getHistoryManager().getStats())
+  ipcMain.handle('history:storageInfo', async () => taskManager.getHistoryManager().getStorageInfo())
+  ipcMain.handle('history:rescanJob', async (_, id: string) => taskManager.getHistoryManager().rescanJob(id))
 }
 
 function setupArtifactHandlers(): void {

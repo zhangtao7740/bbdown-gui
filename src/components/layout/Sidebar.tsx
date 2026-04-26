@@ -1,4 +1,4 @@
-﻿import { Tab, TabList } from '@fluentui/react-components'
+import { Tab, TabList } from '@fluentui/react-components'
 import {
   ArrowDownload20Regular,
   TaskListLtr20Regular,
@@ -7,6 +7,7 @@ import {
   PlugDisconnected20Regular,
   Info20Regular,
 } from '@fluentui/react-icons'
+import { APP_VERSION } from '@/lib/appInfo'
 
 type TabValue = 'download' | 'tasks' | 'history' | 'settings' | 'plugins' | 'about'
 
@@ -16,12 +17,12 @@ interface SidebarProps {
 }
 
 const tabs = [
-  { value: 'download' as TabValue, label: '涓嬭浇', icon: <ArrowDownload20Regular /> },
-  { value: 'tasks' as TabValue, label: '浠诲姟鍒楄〃', icon: <TaskListLtr20Regular /> },
-  { value: 'history' as TabValue, label: '鍘嗗彶璁板綍', icon: <History20Regular /> },
-  { value: 'settings' as TabValue, label: '璁剧疆', icon: <Settings20Regular /> },
-  { value: 'plugins' as TabValue, label: '鎻掍欢鎵╁睍', icon: <PlugDisconnected20Regular /> },
-  { value: 'about' as TabValue, label: '鍏充簬', icon: <Info20Regular /> },
+  { value: 'download' as TabValue, label: '下载', icon: <ArrowDownload20Regular /> },
+  { value: 'tasks' as TabValue, label: '任务列表', icon: <TaskListLtr20Regular /> },
+  { value: 'history' as TabValue, label: '历史记录', icon: <History20Regular /> },
+  { value: 'settings' as TabValue, label: '设置', icon: <Settings20Regular /> },
+  { value: 'plugins' as TabValue, label: '插件扩展', icon: <PlugDisconnected20Regular /> },
+  { value: 'about' as TabValue, label: '关于', icon: <Info20Regular /> },
 ]
 
 export function Sidebar({ selectedTab, onTabChange }: SidebarProps) {
@@ -51,7 +52,7 @@ export function Sidebar({ selectedTab, onTabChange }: SidebarProps) {
 
       <div style={{ marginTop: 'auto', padding: '16px 8px' }}>
         <div style={{ fontSize: '11px', color: 'var(--colorNeutralForeground3)' }}>
-          BBDown GUI v0.1.2
+          BBDown GUI v{APP_VERSION}
         </div>
       </div>
     </div>
