@@ -94,6 +94,12 @@ export interface DownloadTask {
   pageCount?: number
   fileSize?: number
   logs?: LogEntry[]
+  groupId?: string
+  groupKey?: string
+  assetSignature?: string
+  assetLabel?: string
+  isDuplicate?: boolean
+  isMergedIntoGroup?: boolean
 }
 
 export type HistoryArtifactType =

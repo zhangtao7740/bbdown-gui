@@ -172,12 +172,13 @@ export function SettingsPage() {
   }
 
   const cancelLogin = async () => {
-    if (loginRunningRef.current) {
-      await api.bbdown.cancelLogin()
-      loginRunningRef.current = false
-    }
+    await api.bbdown.cancelLogin()
+    loginRunningRef.current = false
     loginUnsubscribeRef.current?.()
     loginUnsubscribeRef.current = null
+    setQrcode('')
+    setLoginError('')
+    setLoginStatus('idle')
   }
 
   const handleLogout = async () => {

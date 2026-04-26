@@ -111,7 +111,7 @@ interface AppState {
   appendTaskLog: (taskId: string, entry: LogEntry) => void
   clearTaskLogs: (taskId: string) => void
   parseUrl: (url: string) => Promise<void>
-  startDownload: (url: string, title: string) => Promise<void>
+  startDownload: (url: string, title: string) => Promise<DownloadTask>
   refreshTasks: () => Promise<void>
   subscribeToTaskEvents: () => () => void
 }
@@ -248,13 +248,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       workDir: downloadOptions.workDir?.replace(/[\\/]$/, ''),
     }
     const videoInfo = get().parsedVideoInfo
-    await api.task.add(url, title, downloadOptionsWithWorkDir, false, [], {
+    const task = await api.task.add(url, title, downloadOptionsWithWorkDir, false, [], {
       bvid: videoInfo?.bvid,
       thumbnail: videoInfo?.cover,
       upName: videoInfo?.up?.name,
       pageCount: videoInfo?.pages?.length,
     })
     await get().refreshTasks()
+    return task
   },
 
   refreshTasks: async () => {

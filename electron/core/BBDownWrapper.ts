@@ -9,6 +9,7 @@ export class BBDownWrapper {
   private workingDir: string
   private outputEncoding: string = 'utf-8'
   private activeLoginProcess: ChildProcess | null = null
+  private activeLoginQRCodePath: string | null = null
 
   constructor(bbdownPath?: string, workingDir?: string) {
     this.bbdownPath = bbdownPath || this.findBBDown()
@@ -470,6 +471,7 @@ export class BBDownWrapper {
     return new Promise((resolve, reject) => {
       let settled = false
       const loginWorkingDir = path.dirname(this.bbdownPath)
+      this.activeLoginQRCodePath = path.join(loginWorkingDir, 'qrcode.png')
       const proc = spawn(this.bbdownPath, ['login'], {
         cwd: loginWorkingDir,
         env: { ...process.env },
@@ -485,6 +487,7 @@ export class BBDownWrapper {
         if (settled) return
         settled = true
         this.activeLoginProcess = null
+        this.cleanupLoginQRCode()
         if (error) reject(error)
         else resolve()
       }
@@ -537,7 +540,7 @@ export class BBDownWrapper {
   }
 
   private readLoginQRCode(loginWorkingDir: string): string | null {
-    const qrcodePath = path.join(loginWorkingDir, 'qrcode.png')
+    const qrcodePath = this.activeLoginQRCodePath || path.join(loginWorkingDir, 'qrcode.png')
     try {
       if (!fsSync.existsSync(qrcodePath)) return null
       const image = fsSync.readFileSync(qrcodePath)
@@ -552,6 +555,31 @@ export class BBDownWrapper {
       this.activeLoginProcess.kill()
       this.activeLoginProcess = null
     }
+    this.cleanupLoginQRCode()
+  }
+
+  private cleanupLoginQRCode(): void {
+    const candidates = [
+      this.activeLoginQRCodePath,
+      path.join(path.dirname(this.bbdownPath), 'qrcode.png'),
+      path.join(this.workingDir, 'qrcode.png'),
+      path.join(process.cwd(), 'qrcode.png'),
+    ].filter(Boolean) as string[]
+
+    for (const candidate of [...new Set(candidates)]) {
+      try {
+        if (fsSync.existsSync(candidate)) fsSync.unlinkSync(candidate)
+      } catch {
+        setTimeout(() => {
+          try {
+            if (fsSync.existsSync(candidate)) fsSync.unlinkSync(candidate)
+          } catch {
+            // Ignore cleanup failures; the next login/cancel will try again.
+          }
+        }, 300)
+      }
+    }
+    this.activeLoginQRCodePath = null
   }
 
   private getCredentialCandidates(): string[] {

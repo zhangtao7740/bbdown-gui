@@ -24,29 +24,37 @@ import {
 import { api, isRunningInElectron } from '@/lib/runtime'
 import { useAppStore } from '@/store/appStore'
 
+type AddTaskFeedback = 'idle' | 'adding' | 'added' | 'duplicate'
+
 const useStyles = makeStyles({
-  container: { padding: '20px', height: '100%', overflowY: 'auto' },
-  inputSection: { display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-end' },
-  inputWrapper: { flex: 1 },
-  buttonGroup: { display: 'flex', gap: '8px' },
-  contentGrid: { display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px' },
-  previewCard: { marginBottom: '20px' },
-  previewHeader: { display: 'flex', gap: '16px' },
+  container: { padding: '20px', height: '100%', overflowY: 'auto', overflowX: 'hidden' },
+  inputSection: { display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-end', minWidth: 0 },
+  inputWrapper: { flex: 1, minWidth: 0 },
+  buttonGroup: { display: 'flex', gap: '8px', flexShrink: 0 },
+  contentGrid: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '20px', minWidth: 0 },
+  previewColumn: { minWidth: 0 },
+  previewCard: { marginBottom: '20px', overflow: 'hidden', minWidth: 0 },
+  previewHeader: { display: 'flex', gap: '16px', minWidth: 0 },
   previewCover: { width: '168px', minWidth: '168px', height: '104px', objectFit: 'cover', borderRadius: '6px', backgroundColor: 'var(--colorNeutralBackground3)' },
   previewInfo: { flex: 1, minWidth: 0 },
-  previewTitle: { display: 'block', fontWeight: 600, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  previewMeta: { display: 'flex', gap: '12px', flexWrap: 'wrap', color: 'var(--colorNeutralForeground3)' },
+  previewTitle: {
+    display: '-webkit-box',
+    fontWeight: 600,
+    marginBottom: '6px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    wordBreak: 'break-word',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2,
+  },
+  previewMeta: { display: 'flex', gap: '12px', flexWrap: 'wrap', color: 'var(--colorNeutralForeground3)', minWidth: 0 },
+  previewMetaItem: { minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  previewActions: { marginTop: '16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 },
   pageGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '180px', overflowY: 'auto', marginTop: '12px' },
   pageItem: { display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' },
   pageInfo: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  taskItem: { marginBottom: '8px' },
-  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '2px 8px', borderRadius: '10px' },
-  logPanel: { maxHeight: '160px', overflowY: 'auto', marginTop: '8px', padding: '6px', backgroundColor: 'var(--colorNeutralBackground3)', borderRadius: '4px', fontSize: '11px', fontFamily: 'Consolas, monospace' },
-  logLine: { display: 'flex', gap: '8px', padding: '1px 0' },
-  logTime: { color: 'var(--colorNeutralForeground4)', minWidth: '64px' },
-  logSource: { minWidth: '44px' },
-  logErr: { color: '#D13438' },
-  sidebarCard: { marginBottom: '16px' },
+  sidebarColumn: { minWidth: 0 },
+  sidebarCard: { marginBottom: '16px', minWidth: 0 },
   toolRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' },
   toolStatus: { display: 'flex', alignItems: 'center', gap: '6px' },
   pathRow: { display: 'flex', gap: '8px' },
@@ -60,7 +68,6 @@ function formatDuration(seconds: number): string {
   const s = Math.floor(seconds % 60)
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`
 }
-
 
 export function DownloadPage() {
   const styles = useStyles()
@@ -81,6 +88,8 @@ export function DownloadPage() {
     updateDownloadOption,
   } = useAppStore()
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [addTaskFeedback, setAddTaskFeedback] = useState<AddTaskFeedback>('idle')
+  const isAddingTask = addTaskFeedback === 'adding'
 
   useEffect(() => {
     refreshTools()
@@ -96,21 +105,32 @@ export function DownloadPage() {
   }
 
   const handleDownload = async () => {
-    if (!urlInput.trim() || !parsedVideoInfo) return
+    if (isAddingTask || !urlInput.trim() || !parsedVideoInfo) return
     const errors = validateBeforeDownload()
     setValidationErrors(errors)
     if (errors.length > 0) return
 
     try {
-      await startDownload(urlInput.trim(), parsedVideoInfo.title)
+      setAddTaskFeedback('adding')
+      const task = await startDownload(urlInput.trim(), parsedVideoInfo.title)
+      setAddTaskFeedback(task.isDuplicate ? 'duplicate' : 'added')
+      window.setTimeout(() => setAddTaskFeedback('idle'), 1500)
     } catch (error) {
+      setAddTaskFeedback('idle')
       setValidationErrors([error instanceof Error ? error.message : '添加任务失败'])
     }
   }
 
+  const downloadButtonText = (withPageCount = false) => {
+    if (addTaskFeedback === 'adding') return '添加中...'
+    if (addTaskFeedback === 'added') return '已加入任务组'
+    if (addTaskFeedback === 'duplicate') return '已在任务组'
+    return withPageCount ? `开始下载 (${downloadOptions.selectedPages.length} 个分 P)` : '开始下载'
+  }
+
   const validateBeforeDownload = () => {
     const errors: string[] = []
-    if (!tools.bbdown?.exists) errors.push('未检测到 BBDown，请在“设置”页配置其路径。')
+    if (!tools.bbdown?.exists) errors.push('未检测到 BBDown，请在“设置”页配置路径。')
     if (!downloadOptions.workDir?.trim()) errors.push('请先选择保存目录。')
     if (downloadOptions.videoOnly && downloadOptions.audioOnly) errors.push('“仅视频”和“仅音频”不能同时启用。')
     if (!parsedVideoInfo) errors.push('请先解析视频信息。')
@@ -124,7 +144,6 @@ export function DownloadPage() {
     const selected = await api.util.selectDirectory()
     if (selected) {
       updateDownloadOption('workDir', selected)
-      // 如果没有默认下载目录，提示用户是否保存为默认
       if (!settings.defaultWorkDir) {
         updateSetting('defaultWorkDir', selected)
         await saveSettings()
@@ -150,7 +169,6 @@ export function DownloadPage() {
     const current = downloadOptions.selectedPages
     updateDownloadOption('selectedPages', current.includes(pageNumber) ? current.filter((page) => page !== pageNumber) : [...current, pageNumber])
   }
-
 
   return (
     <div className={styles.container}>
@@ -183,14 +201,14 @@ export function DownloadPage() {
           <Button appearance="primary" onClick={handleParse} disabled={isParsing || !urlInput.trim()}>
             {isParsing ? '解析中...' : '解析'}
           </Button>
-          <Button appearance="primary" onClick={handleDownload} disabled={!parsedVideoInfo} icon={<ArrowDownload20Regular />}>
-            开始下载
+          <Button appearance="primary" onClick={handleDownload} disabled={!parsedVideoInfo || isAddingTask} icon={<ArrowDownload20Regular />}>
+            {downloadButtonText()}
           </Button>
         </div>
       </div>
 
       <div className={styles.contentGrid}>
-        <div>
+        <div className={styles.previewColumn}>
           {parsedVideoInfo && (
             <Card className={styles.previewCard}>
               <div className={styles.previewHeader}>
@@ -204,16 +222,16 @@ export function DownloadPage() {
                   </div>
                 )}
                 <div className={styles.previewInfo}>
-                  <Text className={styles.previewTitle} size={500}>{parsedVideoInfo.title}</Text>
+                  <Text className={styles.previewTitle} size={500} title={parsedVideoInfo.title}>{parsedVideoInfo.title}</Text>
                   <div className={styles.previewMeta}>
-                    {parsedVideoInfo.up && <span><Person20Regular /> {parsedVideoInfo.up.name}</span>}
-                    {parsedVideoInfo.bvid && <span>{parsedVideoInfo.bvid}</span>}
-                    {parsedVideoInfo.duration > 0 && <span>{formatDuration(parsedVideoInfo.duration)}</span>}
-                    {parsedVideoInfo.partition && <span>{parsedVideoInfo.partition}</span>}
+                    {parsedVideoInfo.up && <span className={styles.previewMetaItem}><Person20Regular /> {parsedVideoInfo.up.name}</span>}
+                    {parsedVideoInfo.bvid && <span className={styles.previewMetaItem}>{parsedVideoInfo.bvid}</span>}
+                    {parsedVideoInfo.duration > 0 && <span className={styles.previewMetaItem}>{formatDuration(parsedVideoInfo.duration)}</span>}
+                    {parsedVideoInfo.partition && <span className={styles.previewMetaItem}>{parsedVideoInfo.partition}</span>}
                   </div>
-                  <div style={{ marginTop: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <Button appearance="primary" icon={<ArrowDownload20Regular />} onClick={handleDownload} disabled={downloadOptions.selectedPages.length === 0}>
-                      开始下载 ({downloadOptions.selectedPages.length} 个分 P)
+                  <div className={styles.previewActions}>
+                    <Button appearance="primary" icon={<ArrowDownload20Regular />} onClick={handleDownload} disabled={downloadOptions.selectedPages.length === 0 || isAddingTask}>
+                      {downloadButtonText(true)}
                     </Button>
                     {parsedVideoInfo.pages?.length > 1 && (
                       <>
@@ -254,7 +272,7 @@ export function DownloadPage() {
           )}
         </div>
 
-        <div>
+        <div className={styles.sidebarColumn}>
           <Card className={styles.sidebarCard}>
             <Text weight="semibold" block style={{ marginBottom: '12px' }}>工具状态</Text>
             {(['bbdown', 'ffmpeg', 'aria2c'] as const).map((toolName) => (

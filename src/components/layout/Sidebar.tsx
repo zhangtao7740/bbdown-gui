@@ -1,4 +1,4 @@
-import { Tab, TabList } from '@fluentui/react-components'
+import { Badge, Tab, TabList } from '@fluentui/react-components'
 import {
   ArrowDownload20Regular,
   TaskListLtr20Regular,
@@ -14,6 +14,7 @@ type TabValue = 'download' | 'tasks' | 'history' | 'settings' | 'plugins' | 'abo
 interface SidebarProps {
   selectedTab: TabValue
   onTabChange: (tab: TabValue) => void
+  activeTaskCount: number
 }
 
 const tabs = [
@@ -25,7 +26,7 @@ const tabs = [
   { value: 'about' as TabValue, label: '关于', icon: <Info20Regular /> },
 ]
 
-export function Sidebar({ selectedTab, onTabChange }: SidebarProps) {
+export function Sidebar({ selectedTab, onTabChange, activeTaskCount }: SidebarProps) {
   return (
     <div
       style={{
@@ -45,7 +46,20 @@ export function Sidebar({ selectedTab, onTabChange }: SidebarProps) {
       >
         {tabs.map((tab) => (
           <Tab key={tab.value} value={tab.value} icon={tab.icon}>
-            {tab.label}
+            {tab.value === 'tasks' ? (
+              <span
+                key={activeTaskCount}
+                className={activeTaskCount > 0 ? 'task-tab-pulse' : undefined}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span>{tab.label}</span>
+                {activeTaskCount > 0 && (
+                  <Badge appearance="filled" color="danger" size="small">
+                    {activeTaskCount > 99 ? '99+' : activeTaskCount}
+                  </Badge>
+                )}
+              </span>
+            ) : tab.label}
           </Tab>
         ))}
       </TabList>

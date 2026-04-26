@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
+  Badge,
   Button,
   Card,
   ProgressBar,
@@ -15,10 +16,15 @@ import {
 } from '@fluentui/react-icons'
 import { api } from '@/lib/runtime'
 import { useAppStore } from '@/store/appStore'
+import type { DownloadTask, TaskStatus } from '../../../electron/core/types'
 
 const useStyles = makeStyles({
   container: { padding: '20px', height: '100%', overflowY: 'auto' },
-  taskItem: { marginBottom: '8px' },
+  taskGroup: { marginBottom: '12px', overflow: 'hidden' },
+  groupHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' },
+  groupMeta: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' },
+  taskRow: { padding: '10px 0', borderTop: '1px solid var(--colorNeutralStroke2)' },
+  taskRowHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '2px 8px', borderRadius: '10px' },
   logPanel: { maxHeight: '160px', overflowY: 'auto', marginTop: '8px', padding: '6px', backgroundColor: 'var(--colorNeutralBackground3)', borderRadius: '4px', fontSize: '11px', fontFamily: 'Consolas, monospace' },
   logLine: { display: 'flex', gap: '8px', padding: '1px 0' },
@@ -27,6 +33,15 @@ const useStyles = makeStyles({
   logErr: { color: '#D13438' },
   emptyState: { textAlign: 'center', padding: '60px 20px', color: 'var(--colorNeutralForeground3)' },
 })
+
+interface TaskGroup {
+  id: string
+  title: string
+  bvid?: string
+  upName?: string
+  thumbnail?: string
+  tasks: DownloadTask[]
+}
 
 function getStatus(status: string): { color: string; label: string } {
   switch (status) {
@@ -41,10 +56,64 @@ function getStatus(status: string): { color: string; label: string } {
   }
 }
 
+function getGroupStatus(tasks: DownloadTask[]): TaskStatus {
+  if (tasks.some((task) => task.status === 'downloading')) return 'downloading'
+  if (tasks.some((task) => task.status === 'processing')) return 'processing'
+  if (tasks.some((task) => task.status === 'waiting')) return 'waiting'
+  if (tasks.some((task) => task.status === 'paused')) return 'paused'
+  if (tasks.some((task) => task.status === 'failed')) return 'failed'
+  if (tasks.every((task) => task.status === 'cancelled')) return 'cancelled'
+  return 'completed'
+}
+
+function getAverageProgress(tasks: DownloadTask[]): number {
+  if (tasks.length === 0) return 0
+  return Math.round(tasks.reduce((sum, task) => sum + task.progress, 0) / tasks.length)
+}
+
+function getAssetLabel(task: DownloadTask): string {
+  if (task.assetLabel) return task.assetLabel
+  const labels = [
+    task.options?.videoOnly ? '仅视频' : task.options?.audioOnly ? '仅音频' : '完整视频',
+    task.options?.downloadSubtitle && '字幕',
+    task.options?.downloadDanmaku && '弹幕',
+    task.options?.downloadCover && '封面',
+  ].filter(Boolean)
+  const pageCount = task.options?.selectedPages?.length
+  return `${labels.join(' / ')}${pageCount ? ` · ${pageCount} 个分 P` : ''}`
+}
+
 export function TasksPage() {
   const styles = useStyles()
   const { tasks, taskLogs } = useAppStore()
   const [expandedLogTask, setExpandedLogTask] = useState<string | null>(null)
+  const groups = useMemo<TaskGroup[]>(() => {
+    const map = new Map<string, TaskGroup>()
+    for (const task of tasks) {
+      const key = task.groupId || task.groupKey || task.bvid || task.url
+      const group = map.get(key)
+      if (group) {
+        group.tasks.push(task)
+      } else {
+        map.set(key, {
+          id: key,
+          title: task.title,
+          bvid: task.bvid,
+          upName: task.upName,
+          thumbnail: task.thumbnail,
+          tasks: [task],
+        })
+      }
+    }
+    return Array.from(map.values()).map((group) => ({
+      ...group,
+      tasks: group.tasks.sort((a, b) => {
+        const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime()
+        const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime()
+        return timeA - timeB
+      }),
+    }))
+  }, [tasks])
 
   if (tasks.length === 0) {
     return (
@@ -61,71 +130,88 @@ export function TasksPage() {
 
   return (
     <div className={styles.container}>
-      <Text weight="semibold" size={500} block style={{ marginBottom: '20px' }}>任务队列 ({tasks.length})</Text>
-      {tasks.map((task) => {
-        const status = getStatus(task.status)
-        const logs = taskLogs[task.id] || task.logs || []
-        const isLogExpanded = expandedLogTask === task.id
-        const assetTypes = [
-          !task.options?.audioOnly && '视频',
-          !task.options?.videoOnly && '音频',
-          task.options?.downloadSubtitle && '字幕',
-          task.options?.downloadDanmaku && '弹幕',
-          task.options?.downloadCover && '封面',
-        ].filter(Boolean).join(' / ')
-
+      <Text weight="semibold" size={500} block style={{ marginBottom: '20px' }}>
+        任务队列 ({groups.length} 个视频组 / {tasks.length} 个子任务)
+      </Text>
+      {groups.map((group) => {
+        const groupStatus = getStatus(getGroupStatus(group.tasks))
+        const progress = getAverageProgress(group.tasks)
         return (
-          <Card key={task.id} className={styles.taskItem}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+          <Card key={group.id} className={styles.taskGroup}>
+            <div className={styles.groupHeader}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <Text weight="semibold" block truncate>{task.title}</Text>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                  <span className={styles.statusBadge} style={{ backgroundColor: `${status.color}20`, color: status.color }}>{status.label}</span>
-                  <Text size={200}>{assetTypes}</Text>
-                  {task.options?.selectedPages?.length ? <Text size={200}>分 P：{task.options.selectedPages.length}</Text> : null}
-                  {task.speed ? <Text size={200}>速度：{task.speed}</Text> : null}
-                  <Text size={200}>进度：{task.progress}%</Text>
+                <Text weight="semibold" block truncate title={group.title}>{group.title}</Text>
+                <div className={styles.groupMeta}>
+                  <span className={styles.statusBadge} style={{ backgroundColor: `${groupStatus.color}20`, color: groupStatus.color }}>{groupStatus.label}</span>
+                  <Badge appearance="tint" color="brand" size="small">{group.tasks.length} 个子任务</Badge>
+                  {group.bvid ? <Text size={200}>{group.bvid}</Text> : null}
+                  {group.upName ? <Text size={200}>{group.upName}</Text> : null}
+                  <Text size={200}>总进度：{progress}%</Text>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {(task.status === 'waiting' || task.status === 'paused' || task.status === 'failed') && (
-                  <Tooltip content="开始" relationship="label">
-                    <Button appearance="subtle" icon={<Play20Regular />} onClick={() => api.task.start(task.id)} />
-                  </Tooltip>
-                )}
-                {(task.status === 'downloading' || task.status === 'processing') && (
-                  <Tooltip content="暂停" relationship="label">
-                    <Button appearance="subtle" icon={<Pause20Regular />} onClick={() => api.task.stop(task.id)} />
-                  </Tooltip>
-                )}
-                {task.status === 'completed' && (
-                  <Tooltip content="打开文件夹" relationship="label">
-                    <Button appearance="subtle" icon={<FolderOpen20Regular />} onClick={() => api.util.openDirectory(task.outputPath || task.options?.workDir || '')} />
-                  </Tooltip>
-                )}
-                <Tooltip content="删除队列记录" relationship="label">
-                  <Button appearance="subtle" icon={<Delete20Regular />} onClick={() => api.task.remove(task.id)} />
-                </Tooltip>
-                <Button appearance="subtle" onClick={() => setExpandedLogTask(isLogExpanded ? null : task.id)}>
-                  {isLogExpanded ? '隐藏日志' : '日志'}
-                </Button>
-              </div>
             </div>
-            {(task.status === 'downloading' || task.status === 'processing') && (
-              <ProgressBar value={task.progress / 100} style={{ marginTop: '8px' }} />
+            {['downloading', 'processing', 'waiting'].includes(getGroupStatus(group.tasks)) && (
+              <ProgressBar value={progress / 100} style={{ marginBottom: '8px' }} />
             )}
-            {isLogExpanded && (
-              <div className={styles.logPanel}>
-                {logs.length === 0 && <Text size={200}>暂无日志</Text>}
-                {logs.slice(-100).map((entry, index) => (
-                  <div key={`${entry.timestamp}-${index}`} className={styles.logLine}>
-                    <span className={styles.logTime}>{new Date(entry.timestamp).toLocaleTimeString()}</span>
-                    <span className={`${styles.logSource} ${entry.level === 'error' ? styles.logErr : ''}`}>{entry.source}</span>
-                    <span className={entry.level === 'error' ? styles.logErr : undefined}>{entry.message}</span>
+
+            {group.tasks.map((task) => {
+              const status = getStatus(task.status)
+              const logs = taskLogs[task.id] || task.logs || []
+              const isLogExpanded = expandedLogTask === task.id
+
+              return (
+                <div key={task.id} className={styles.taskRow}>
+                  <div className={styles.taskRowHeader}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text weight="semibold" block truncate>{getAssetLabel(task)}</Text>
+                      <div className={styles.groupMeta}>
+                        <span className={styles.statusBadge} style={{ backgroundColor: `${status.color}20`, color: status.color }}>{status.label}</span>
+                        {task.speed ? <Text size={200}>速度：{task.speed}</Text> : null}
+                        <Text size={200}>进度：{task.progress}%</Text>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {(task.status === 'waiting' || task.status === 'paused' || task.status === 'failed') && (
+                        <Tooltip content="开始" relationship="label">
+                          <Button appearance="subtle" icon={<Play20Regular />} onClick={() => api.task.start(task.id)} />
+                        </Tooltip>
+                      )}
+                      {(task.status === 'downloading' || task.status === 'processing') && (
+                        <Tooltip content="暂停" relationship="label">
+                          <Button appearance="subtle" icon={<Pause20Regular />} onClick={() => api.task.stop(task.id)} />
+                        </Tooltip>
+                      )}
+                      {task.status === 'completed' && (
+                        <Tooltip content="打开文件夹" relationship="label">
+                          <Button appearance="subtle" icon={<FolderOpen20Regular />} onClick={() => api.util.openDirectory(task.outputPath || task.options?.workDir || '')} />
+                        </Tooltip>
+                      )}
+                      <Tooltip content="删除这个子任务" relationship="label">
+                        <Button appearance="subtle" icon={<Delete20Regular />} onClick={() => api.task.remove(task.id)} />
+                      </Tooltip>
+                      <Button appearance="subtle" onClick={() => setExpandedLogTask(isLogExpanded ? null : task.id)}>
+                        {isLogExpanded ? '隐藏日志' : '日志'}
+                      </Button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  {(task.status === 'downloading' || task.status === 'processing') && (
+                    <ProgressBar value={task.progress / 100} style={{ marginTop: '8px' }} />
+                  )}
+                  {isLogExpanded && (
+                    <div className={styles.logPanel}>
+                      {logs.length === 0 && <Text size={200}>暂无日志</Text>}
+                      {logs.slice(-100).map((entry, index) => (
+                        <div key={`${entry.timestamp}-${index}`} className={styles.logLine}>
+                          <span className={styles.logTime}>{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                          <span className={`${styles.logSource} ${entry.level === 'error' ? styles.logErr : ''}`}>{entry.source}</span>
+                          <span className={entry.level === 'error' ? styles.logErr : undefined}>{entry.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </Card>
         )
       })}

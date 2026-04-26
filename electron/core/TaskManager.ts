@@ -28,8 +28,23 @@ export class TaskManager extends EventEmitter {
     postProcessRules: PostProcessRule[] = [],
     metadata: Partial<DownloadTask> = {}
   ): DownloadTask {
+    const groupKey = this.buildTaskGroupKey(url, metadata)
+    const mergeResult = this.mergeOptionsIntoGroup(groupKey, options)
+    if (mergeResult.duplicate) {
+      return { ...mergeResult.duplicate, isDuplicate: true }
+    }
+
+    const normalizedOptions = mergeResult.options
+    const assetSignature = this.buildAssetSignature(normalizedOptions)
+    const existingGroupTask = this.getAllTasks().find((task) => (task.groupKey || this.buildTaskGroupKey(task.url, task)) === groupKey)
+    const duplicate = this.findDuplicateTask(groupKey, assetSignature)
+    if (duplicate) {
+      return { ...duplicate, isDuplicate: true }
+    }
+
+    const taskId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const task: DownloadTask = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: taskId,
       url,
       title,
       status: 'waiting',
@@ -39,7 +54,7 @@ export class TaskManager extends EventEmitter {
       totalSize: 'Unknown',
       eta: '',
       createdAt: new Date(),
-      options,
+      options: normalizedOptions,
       enablePostProcess,
       postProcessRules,
       bvid: metadata.bvid,
@@ -47,6 +62,11 @@ export class TaskManager extends EventEmitter {
       upName: metadata.upName,
       pageCount: metadata.pageCount,
       logs: [],
+      groupId: existingGroupTask?.groupId || groupKey,
+      groupKey,
+      assetSignature,
+      assetLabel: this.buildAssetLabel(normalizedOptions),
+      isMergedIntoGroup: Boolean(existingGroupTask),
     }
 
     this.tasks.set(task.id, task)
@@ -350,6 +370,95 @@ export class TaskManager extends EventEmitter {
   private extractBvid(text: string): string {
     const match = text.match(/BV[a-zA-Z0-9]+/)
     return match ? match[0] : ''
+  }
+
+  private findDuplicateTask(groupKey: string, assetSignature: string): DownloadTask | undefined {
+    return this.getAllTasks().find((task) => {
+      if (!['waiting', 'downloading', 'processing', 'paused'].includes(task.status)) return false
+      const taskGroupKey = task.groupKey || this.buildTaskGroupKey(task.url, task)
+      const taskAssetSignature = task.assetSignature || this.buildAssetSignature(task.options)
+      return taskGroupKey === groupKey && taskAssetSignature === assetSignature
+    })
+  }
+
+  private mergeOptionsIntoGroup(
+    groupKey: string,
+    options: DownloadOptions
+  ): { options: DownloadOptions; duplicate?: DownloadTask } {
+    const groupTasks = this.getAllTasks().filter((task) => (task.groupKey || this.buildTaskGroupKey(task.url, task)) === groupKey)
+    if (groupTasks.length === 0) return { options }
+
+    const existingComponents = new Set(groupTasks.flatMap((task) => this.buildAssetComponents(task.options)))
+    const requestedComponents = this.buildAssetComponents(options)
+    const missingComponents = requestedComponents.filter((component) => !existingComponents.has(component))
+
+    if (missingComponents.length === 0) {
+      return { options, duplicate: groupTasks[0] }
+    }
+
+    const normalizedOptions: DownloadOptions = { ...options }
+    const pageKey = this.buildPageKey(options)
+    const hasMissing = (component: string) => missingComponents.includes(`${component}@${pageKey}`)
+
+    if (!hasMissing('subtitle')) normalizedOptions.downloadSubtitle = false
+    if (!hasMissing('danmaku')) normalizedOptions.downloadDanmaku = false
+    if (!hasMissing('cover')) normalizedOptions.downloadCover = false
+
+    return { options: normalizedOptions }
+  }
+
+  private buildTaskGroupKey(url: string, metadata?: Partial<DownloadTask>): string {
+    const bvid = metadata?.bvid || this.extractBvid(url)
+    return (bvid || this.normalizeUrlForDuplicateCheck(url)).toLowerCase()
+  }
+
+  private buildAssetSignature(options?: DownloadOptions): string {
+    return [
+      options?.apiMode || 'web',
+      this.buildAssetComponents(options).join('|') || 'none',
+    ].join('::')
+  }
+
+  private buildAssetComponents(options?: DownloadOptions): string[] {
+    const pageKey = this.buildPageKey(options)
+    const components = [
+      options?.videoOnly ? 'video-only' : options?.audioOnly ? 'audio-only' : 'full-video',
+      options?.downloadSubtitle ? 'subtitle' : '',
+      options?.downloadDanmaku ? 'danmaku' : '',
+      options?.downloadCover ? 'cover' : '',
+    ].filter(Boolean)
+    return components.map((component) => `${component}@${pageKey}`)
+  }
+
+  private buildPageKey(options?: DownloadOptions): string {
+    return [...(options?.selectedPages || [])].sort((a, b) => a - b).join(',') || 'all'
+  }
+
+  private buildAssetLabel(options?: DownloadOptions): string {
+    const labels: string[] = []
+    if (options?.videoOnly) {
+      labels.push('仅视频')
+    } else if (options?.audioOnly) {
+      labels.push('仅音频')
+    } else {
+      labels.push('完整视频')
+    }
+    if (options?.downloadSubtitle) labels.push('字幕')
+    if (options?.downloadDanmaku) labels.push('弹幕')
+    if (options?.downloadCover) labels.push('封面')
+    const pageCount = options?.selectedPages?.length
+    return `${labels.join(' / ')}${pageCount ? ` · ${pageCount} 个分 P` : ''}`
+  }
+
+  private normalizeUrlForDuplicateCheck(url: string): string {
+    try {
+      const parsed = new URL(url)
+      parsed.search = ''
+      parsed.hash = ''
+      return parsed.toString().replace(/\/$/, '')
+    } catch {
+      return url.trim()
+    }
   }
 
   private addLog(taskId: string, source: 'stdout' | 'stderr', message: string): void {

@@ -63,7 +63,8 @@ const renderPage = (tab: TabValue) => {
 }
 
 function AppContent() {
-  const { selectedTab, setSelectedTab, subscribeToTaskEvents, refreshTasks, loadSettings, refreshTools } = useAppStore()
+  const { selectedTab, setSelectedTab, subscribeToTaskEvents, refreshTasks, loadSettings, refreshTools, tasks } = useAppStore()
+  const activeTaskCount = tasks.filter((task) => ['waiting', 'downloading', 'processing'].includes(task.status)).length
 
   useEffect(() => {
     const unsubscribe = subscribeToTaskEvents()
@@ -85,7 +86,7 @@ function AppContent() {
     >
       <TitleBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar selectedTab={selectedTab} onTabChange={setSelectedTab} />
+        <Sidebar selectedTab={selectedTab} onTabChange={setSelectedTab} activeTaskCount={activeTaskCount} />
         <div style={{ flex: 1, overflow: 'hidden' }}>
           {renderPage(selectedTab)}
         </div>
