@@ -479,11 +479,11 @@ export class HistoryManager {
     const type = this.classifyArtifact(filePath)
     if (type !== 'video' && type !== 'audio') return undefined
 
-    const ffprobePath = ToolDetector.getToolPath('ffprobe') || 'ffprobe.exe'
+    const ffprobePath = ToolDetector.getToolPath('ffprobe') || (process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe')
     const args = ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath]
 
     return await new Promise((resolve) => {
-      const child = spawn(ffprobePath, args, { windowsHide: true })
+      const child = spawn(ffprobePath, args, { env: this.buildProbeEnv(), windowsHide: true })
       let stdout = ''
       let stderr = ''
 
@@ -526,6 +526,35 @@ export class HistoryManager {
         resolve({ scannedAt: new Date().toISOString(), scanError: error.message })
       })
     })
+  }
+
+  private buildProbeEnv(): NodeJS.ProcessEnv {
+    const env = { ...process.env }
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH'
+    const pathParts = new Set<string>()
+    const addPath = (value?: string | null) => {
+      if (!value) return
+      const executableNames = new Set(['ffmpeg', 'ffmpeg.exe', 'ffprobe', 'ffprobe.exe'])
+      pathParts.add(executableNames.has(path.basename(value).toLowerCase()) ? path.dirname(value) : value)
+    }
+
+    addPath(ToolDetector.getToolPath('ffmpeg'))
+    addPath(ToolDetector.getToolPath('ffprobe'))
+    for (const commonPath of [
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/local/sbin',
+      '/usr/bin',
+      '/bin',
+    ]) {
+      pathParts.add(commonPath)
+    }
+    for (const currentPath of (env[pathKey] || '').split(path.delimiter)) {
+      if (currentPath) pathParts.add(currentPath)
+    }
+    env[pathKey] = Array.from(pathParts).join(path.delimiter)
+    return env
   }
 
   private async scanDirRecursive(

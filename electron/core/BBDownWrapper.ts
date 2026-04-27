@@ -3,6 +3,7 @@ import path from 'path'
 import fsSync from 'fs'
 import fs from 'fs/promises'
 import type { DownloadOptions, ProcessOutput, VideoInfo } from './types'
+import { ToolDetector } from './ToolDetector'
 
 export class BBDownWrapper {
   private bbdownPath: string
@@ -10,6 +11,7 @@ export class BBDownWrapper {
   private outputEncoding: string = 'utf-8'
   private activeLoginProcess: ChildProcess | null = null
   private activeLoginQRCodePath: string | null = null
+  private activeLoginQRCodeTimers: Array<ReturnType<typeof setTimeout>> = []
 
   constructor(bbdownPath?: string, workingDir?: string) {
     this.bbdownPath = bbdownPath || this.findBBDown()
@@ -25,10 +27,70 @@ export class BBDownWrapper {
     this.outputEncoding = encoding
   }
 
+  private resolveToolPath(
+    toolName: 'ffmpeg' | 'ffprobe' | 'aria2c',
+    configuredPath?: string
+  ): string | undefined {
+    return configuredPath || ToolDetector.getToolPath(toolName) || undefined
+  }
+
+  private getExecutableDirectory(value: string): string {
+    const executableNames = new Set([
+      'bbdown',
+      'bbdown.exe',
+      'ffmpeg',
+      'ffmpeg.exe',
+      'ffprobe',
+      'ffprobe.exe',
+      'aria2c',
+      'aria2c.exe',
+    ])
+    return executableNames.has(path.basename(value).toLowerCase()) ? path.dirname(value) : value
+  }
+
+  private buildToolEnv(options: Partial<DownloadOptions> = {}): NodeJS.ProcessEnv {
+    const env = { ...process.env }
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH'
+    const pathParts = new Set<string>()
+    const addPath = (value?: string | null) => {
+      if (!value) return
+      pathParts.add(this.getExecutableDirectory(value))
+    }
+
+    addPath(options.ffmpegPath)
+    addPath(options.aria2cPath)
+    addPath(ToolDetector.getToolPath('ffmpeg'))
+    addPath(ToolDetector.getToolPath('ffprobe'))
+    addPath(ToolDetector.getToolPath('aria2c'))
+
+    for (const commonPath of [
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/local/sbin',
+      '/usr/bin',
+      '/bin',
+    ]) {
+      pathParts.add(commonPath)
+    }
+
+    for (const currentPath of (env[pathKey] || '').split(path.delimiter)) {
+      if (currentPath) pathParts.add(currentPath)
+    }
+
+    env[pathKey] = Array.from(pathParts).join(path.delimiter)
+    return env
+  }
+
   private findBBDown(): string {
+    const platformArch = `${process.platform}-${process.arch}`
+    const executableNames = process.platform === 'win32' ? ['BBDown.exe', 'BBDown'] : ['BBDown', 'BBDown.exe']
     const candidateBases = [
+      path.join(process.cwd(), 'build', 'tools', platformArch),
       process.cwd(),
       path.dirname(process.execPath),
+      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools', platformArch)] : []),
+      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools')] : []),
       process.resourcesPath,
     ].filter(Boolean)
 
@@ -36,7 +98,9 @@ export class BBDownWrapper {
     for (const base of candidateBases) {
       let current = base
       for (let i = 0; i < 4; i += 1) {
-        candidates.add(path.join(current, 'BBDown.exe'))
+        for (const executableName of executableNames) {
+          candidates.add(path.join(current, executableName))
+        }
         current = path.dirname(current)
       }
     }
@@ -45,7 +109,7 @@ export class BBDownWrapper {
       if (fsSync.existsSync(candidate)) return candidate
     }
 
-    return 'BBDown.exe'
+    return process.platform === 'win32' ? 'BBDown.exe' : 'BBDown'
   }
 
   buildArgs(options: Partial<DownloadOptions>): string[] {
@@ -88,8 +152,10 @@ export class BBDownWrapper {
       args.push('--delay-per-page', String(options.delayPerPage))
     }
     if (options.useMP4box) args.push('--use-mp4box')
-    if (options.ffmpegPath) args.push('--ffmpeg-path', options.ffmpegPath)
-    if (options.aria2cPath) args.push('--aria2c-path', options.aria2cPath)
+    const ffmpegPath = this.resolveToolPath('ffmpeg', options.ffmpegPath)
+    const aria2cPath = this.resolveToolPath('aria2c', options.aria2cPath)
+    if (ffmpegPath) args.push('--ffmpeg-path', ffmpegPath)
+    if (aria2cPath) args.push('--aria2c-path', aria2cPath)
     if (options.cookie) args.push('-c', options.cookie)
     if (options.accessToken) args.push('-token', options.accessToken)
     if (options.language) args.push('--language', options.language)
@@ -103,12 +169,13 @@ export class BBDownWrapper {
     if (options?.apiMode && options.apiMode !== 'web') args.push(`-${options.apiMode}`)
     if (options?.cookie) args.push('-c', options.cookie)
     if (options?.accessToken) args.push('-token', options.accessToken)
-    if (options?.ffmpegPath) args.push('--ffmpeg-path', options.ffmpegPath)
+    const ffmpegPath = this.resolveToolPath('ffmpeg', options?.ffmpegPath)
+    if (ffmpegPath) args.push('--ffmpeg-path', ffmpegPath)
 
     return new Promise((resolve, reject) => {
       const proc = spawn(this.bbdownPath, args, {
         cwd: this.workingDir,
-        env: { ...process.env },
+        env: this.buildToolEnv({ ...options, ffmpegPath }),
         windowsHide: true,
       })
 
@@ -348,11 +415,16 @@ export class BBDownWrapper {
     process: ChildProcess
     promise: Promise<ProcessOutput>
   } {
-    const args = this.buildArgs(options)
+    const normalizedOptions = {
+      ...options,
+      ffmpegPath: this.resolveToolPath('ffmpeg', options.ffmpegPath),
+      aria2cPath: this.resolveToolPath('aria2c', options.aria2cPath),
+    }
+    const args = this.buildArgs(normalizedOptions)
 
     const proc = spawn(this.bbdownPath, args, {
       cwd: options.workDir || this.workingDir,
-      env: { ...process.env },
+      env: this.buildToolEnv(normalizedOptions),
       windowsHide: true,
     })
 
@@ -445,7 +517,7 @@ export class BBDownWrapper {
 
   async getVersion(): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn(this.bbdownPath, ['--version'], { windowsHide: true })
+      const proc = spawn(this.bbdownPath, ['--version'], { env: this.buildToolEnv(), windowsHide: true })
       let stdout = ''
       const stdoutDecoder = new TextDecoder(this.outputEncoding)
 
@@ -470,11 +542,13 @@ export class BBDownWrapper {
 
     return new Promise((resolve, reject) => {
       let settled = false
-      const loginWorkingDir = path.dirname(this.bbdownPath)
+      const loginWorkingDir = this.workingDir || process.cwd()
+      fsSync.mkdirSync(loginWorkingDir, { recursive: true })
       this.activeLoginQRCodePath = path.join(loginWorkingDir, 'qrcode.png')
+      this.removeLoginQRCodeCandidates(loginWorkingDir)
       const proc = spawn(this.bbdownPath, ['login'], {
         cwd: loginWorkingDir,
-        env: { ...process.env },
+        env: this.buildToolEnv(),
         windowsHide: true,
       })
       this.activeLoginProcess = proc
@@ -482,6 +556,25 @@ export class BBDownWrapper {
       const stdoutDecoder = new TextDecoder(this.outputEncoding)
       const stderrDecoder = new TextDecoder(this.outputEncoding)
       let qrcodeImageSent = false
+
+      const trySendQRCodeImage = () => {
+        if (qrcodeImageSent) return true
+        const image = this.readLoginQRCode(loginWorkingDir)
+        if (!image) return false
+        qrcodeImageSent = true
+        onQRCode(image)
+        this.clearLoginQRCodeTimers()
+        return true
+      }
+
+      const scheduleQRCodeRead = () => {
+        if (qrcodeImageSent) return
+        trySendQRCodeImage()
+        if (qrcodeImageSent || this.activeLoginQRCodeTimers.length > 0) return
+        for (const delay of [120, 300, 700, 1200, 2000]) {
+          this.activeLoginQRCodeTimers.push(setTimeout(trySendQRCodeImage, delay))
+        }
+      }
 
       const finish = (error?: Error) => {
         if (settled) return
@@ -494,13 +587,7 @@ export class BBDownWrapper {
 
       const handleOutput = (text: string) => {
         const cleaned = this.cleanTerminalOutput(text)
-        const image = this.readLoginQRCode(loginWorkingDir)
-        if (image && !qrcodeImageSent) {
-          qrcodeImageSent = true
-          onQRCode(image)
-        } else if (cleaned && !qrcodeImageSent) {
-          onQRCode(cleaned)
-        }
+        scheduleQRCodeRead()
         if (this.isLoginSuccess(cleaned)) finish()
       }
 
@@ -540,14 +627,18 @@ export class BBDownWrapper {
   }
 
   private readLoginQRCode(loginWorkingDir: string): string | null {
-    const qrcodePath = this.activeLoginQRCodePath || path.join(loginWorkingDir, 'qrcode.png')
-    try {
-      if (!fsSync.existsSync(qrcodePath)) return null
-      const image = fsSync.readFileSync(qrcodePath)
-      return `data:image/png;base64,${image.toString('base64')}`
-    } catch {
-      return null
+    const candidates = this.getLoginQRCodeCandidates(loginWorkingDir)
+    for (const qrcodePath of candidates) {
+      try {
+        if (!fsSync.existsSync(qrcodePath)) continue
+        const image = fsSync.readFileSync(qrcodePath)
+        if (image.length === 0) continue
+        return `data:image/png;base64,${image.toString('base64')}`
+      } catch {
+        // Try next possible BBDown qrcode output location.
+      }
     }
+    return null
   }
 
   cancelLogin(): void {
@@ -559,13 +650,32 @@ export class BBDownWrapper {
   }
 
   private cleanupLoginQRCode(): void {
+    this.clearLoginQRCodeTimers()
+    this.removeLoginQRCodeCandidates(this.workingDir)
+    this.activeLoginQRCodePath = null
+  }
+
+  private clearLoginQRCodeTimers(): void {
+    for (const timer of this.activeLoginQRCodeTimers) {
+      clearTimeout(timer)
+    }
+    this.activeLoginQRCodeTimers = []
+  }
+
+  private getLoginQRCodeCandidates(loginWorkingDir: string): string[] {
     const candidates = [
       this.activeLoginQRCodePath,
+      path.join(loginWorkingDir, 'qrcode.png'),
       path.join(path.dirname(this.bbdownPath), 'qrcode.png'),
       path.join(this.workingDir, 'qrcode.png'),
       path.join(process.cwd(), 'qrcode.png'),
     ].filter(Boolean) as string[]
 
+    return [...new Set(candidates)]
+  }
+
+  private removeLoginQRCodeCandidates(loginWorkingDir: string): void {
+    const candidates = this.getLoginQRCodeCandidates(loginWorkingDir)
     for (const candidate of [...new Set(candidates)]) {
       try {
         if (fsSync.existsSync(candidate)) fsSync.unlinkSync(candidate)
@@ -579,7 +689,6 @@ export class BBDownWrapper {
         }, 300)
       }
     }
-    this.activeLoginQRCodePath = null
   }
 
   private getCredentialCandidates(): string[] {

@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import { TaskManager } from '../core/TaskManager'
@@ -10,8 +10,9 @@ let taskManager: TaskManager
 let bbdown: BBDownWrapper
 
 export function initIpcHandlers(): void {
-  taskManager = new TaskManager()
-  bbdown = new BBDownWrapper()
+  const toolWorkingDir = app.getPath('userData')
+  taskManager = new TaskManager(undefined, toolWorkingDir)
+  bbdown = new BBDownWrapper(undefined, toolWorkingDir)
 
   setupTaskEventForwarding()
   setupTaskHandlers()

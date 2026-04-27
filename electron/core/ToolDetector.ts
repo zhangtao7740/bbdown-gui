@@ -35,7 +35,7 @@ export class ToolDetector {
       path: '',
     }
 
-    const exeName = toolName === 'bbdown' ? 'BBDown.exe' : `${toolName}.exe`
+    const exeNames = this.getExecutableNames(toolName)
     const configuredPath = this.toolPaths[toolName]
 
     if (configuredPath) {
@@ -52,12 +52,12 @@ export class ToolDetector {
       }
     }
 
-    const searchPaths = [
+    const searchPaths = exeNames.flatMap((exeName) => [
       ...this.buildCandidatePaths(exeName),
       path.join(process.cwd(), '..', exeName),
       path.join(process.cwd(), exeName),
       exeName,
-    ]
+    ])
 
     for (const searchPath of searchPaths) {
       try {
@@ -74,11 +74,11 @@ export class ToolDetector {
 
     if (!info.exists) {
       try {
-        const version = await this.getVersion(exeName, toolName)
+        const version = await this.getVersion(exeNames[0], toolName)
         info.exists = true
         info.version = version
-        info.path = exeName
-        this.toolPaths[toolName] = exeName
+        info.path = exeNames[0]
+        this.toolPaths[toolName] = exeNames[0]
       } catch {
         info.exists = false
       }
@@ -129,10 +129,17 @@ export class ToolDetector {
   }
 
   private static buildCandidatePaths(exeName: string): string[] {
+    const platformArch = `${process.platform}-${process.arch}`
     const basePaths = [
+      path.join(process.cwd(), 'build', 'tools', platformArch),
       process.cwd(),
       path.dirname(process.execPath),
+      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools', platformArch)] : []),
+      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools')] : []),
       process.resourcesPath,
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      '/usr/bin',
     ].filter(Boolean)
 
     const candidates = new Set<string>()
@@ -147,6 +154,14 @@ export class ToolDetector {
     return [...candidates]
   }
 
+  private static getExecutableNames(toolName: string): string[] {
+    if (toolName === 'bbdown') {
+      return process.platform === 'win32' ? ['BBDown.exe', 'BBDown'] : ['BBDown', 'BBDown.exe']
+    }
+
+    return process.platform === 'win32' ? [`${toolName}.exe`, toolName] : [toolName, `${toolName}.exe`]
+  }
+
   static getToolPath(toolName: string): string | null {
     return this.toolPaths[toolName]
   }
@@ -154,7 +169,8 @@ export class ToolDetector {
   static setToolPath(toolName: string, path: string): void {
     this.toolPaths[toolName] = path
     if (toolName === 'ffmpeg') {
-      const ffprobePath = path.replace(/ffmpeg(\.exe)?$/i, 'ffprobe.exe')
+      const ffprobeName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
+      const ffprobePath = path.replace(/ffmpeg(\.exe)?$/i, ffprobeName)
       if (ffprobePath !== path && fs.existsSync(ffprobePath)) {
         this.toolPaths.ffprobe = ffprobePath
       }

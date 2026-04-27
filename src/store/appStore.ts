@@ -87,6 +87,16 @@ const defaultSettings: AppSettings = {
   notificationEnabled: true,
 }
 
+function resolveToolPath(
+  settingsPath: string | undefined,
+  tools: Record<string, ToolInfo>,
+  toolName: 'ffmpeg' | 'aria2c'
+): string | undefined {
+  if (settingsPath) return settingsPath
+  const detectedTool = tools[toolName]
+  return detectedTool?.exists && detectedTool.path ? detectedTool.path : undefined
+}
+
 interface AppState {
   selectedTab: TabValue
   setSelectedTab: (tab: TabValue) => void
@@ -195,10 +205,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   parseUrl: async (url: string) => {
     set({ isParsing: true, parsedVideoInfo: null })
     try {
-      const { downloadOptions, settings } = get()
+      const { downloadOptions, settings, tools } = get()
       const result = await api.bbdown.parse(url, {
         apiMode: downloadOptions.apiMode,
-        ffmpegPath: settings.ffmpegPath || undefined,
+        ffmpegPath: resolveToolPath(settings.ffmpegPath, tools, 'ffmpeg'),
       })
       if (!result.success || !result.data) {
         throw new Error(result.error || '解析失败')
@@ -216,6 +226,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   startDownload: async (url: string, title: string) => {
     const options = get().downloadOptions
     const settings = get().settings
+    const tools = get().tools
     const downloadOptions: DownloadOptions = {
       url,
       apiMode: options.apiMode,
@@ -240,8 +251,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       threadCount: options.threadCount,
       delayPerPage: options.delayPerPage,
       useMP4box: options.useMP4box,
-      ffmpegPath: settings.ffmpegPath,
-      aria2cPath: settings.aria2cPath,
+      ffmpegPath: resolveToolPath(settings.ffmpegPath, tools, 'ffmpeg'),
+      aria2cPath: resolveToolPath(settings.aria2cPath, tools, 'aria2c'),
     }
     const downloadOptionsWithWorkDir = {
       ...downloadOptions,

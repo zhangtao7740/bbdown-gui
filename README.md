@@ -4,7 +4,7 @@ An Electron + React + Fluent UI desktop GUI for [BBDown](https://github.com/nila
 
 BBDown GUI is an orchestration layer. It handles task setup, option selection, logs, local history, and artifact management. Actual parsing, downloading, muxing, media probing, and transcoding are still delegated to local command-line tools:
 
-- BBDown.exe for Bilibili parsing and downloads
+- BBDown for Bilibili parsing and downloads
 - FFmpeg for muxing and post-processing
 - FFprobe for media information
 - aria2c as an optional download helper
@@ -72,10 +72,9 @@ Subtitles, danmaku, and cover files are treated as file-management artifacts and
 
 Recommended environment:
 
-- Windows 10/11
 - Node.js 20+
 - npm
-- BBDown.exe
+- BBDown
 - FFmpeg / FFprobe
 - aria2c optional
 
@@ -105,7 +104,7 @@ npm run build
 
 Package:
 
-```powershell
+```sh
 npm run dist
 ```
 
@@ -115,10 +114,67 @@ Build artifacts are emitted to:
 release/
 ```
 
+### macOS Build
+
+The macOS build expects FFmpeg and FFprobe to be available from Homebrew:
+
+```sh
+brew install ffmpeg
+which ffmpeg
+which ffprobe
+```
+
+BBDown can be supplied at package time without committing the binary. The default local path used by this repo is:
+
+```text
+/Users/zhangtao/Downloads/BBDown
+```
+
+For Apple Silicon only builds, BBDown can be supplied with `BBDOWN_BIN_PATH` or `BBDOWN_ARM64_BIN_PATH`:
+
+```sh
+export BBDOWN_BIN_PATH=/absolute/path/to/BBDown
+```
+
+Universal macOS builds require both BBDown architectures. The default paths are:
+
+```text
+/Users/zhangtao/Downloads/BBDown
+/Users/zhangtao/Downloads/BBDown-osx-x64/BBDown
+```
+
+If either binary is stored elsewhere, set the architecture-specific paths before packaging:
+
+```sh
+export BBDOWN_ARM64_BIN_PATH=/absolute/path/to/osx-arm64/BBDown
+export BBDOWN_X64_BIN_PATH=/absolute/path/to/osx-x64/BBDown
+```
+
+Build an unsigned local universal macOS deliverable:
+
+```sh
+npm install
+npm run dist:mac
+```
+
+`npm run dist:mac` is the universal handoff build. It performs the renderer/main build, copies both BBDown architectures into the packaged app resources, fixes executable bits, removes local quarantine attributes from those copied binaries, validates the Homebrew FFmpeg paths, and then emits macOS artifacts under `release/`.
+
+Expected universal output:
+
+```text
+release/mac-universal/BBDown GUI.app
+release/BBDown GUI-0.1.4-universal.dmg
+release/BBDown GUI-0.1.4-universal-mac.zip
+```
+
+Architecture-specific builds remain available with `npm run dist:mac:arm64` and `npm run dist:mac:x64`.
+
+The local macOS script disables automatic certificate discovery with `CSC_IDENTITY_AUTO_DISCOVERY=false`, so Electron Builder falls back to ad-hoc signing and skips notarization. This is suitable for internal handoff and verification. For public distribution, add a Developer ID signing identity plus notarization instead of using the local handoff script as-is.
+
 ## Repository Notes
 
 - Do not commit `BBDown.data`; it may contain login state or sensitive data.
-- Do not commit local copies of BBDown.exe, FFmpeg.exe, FFprobe.exe, or aria2c.exe.
+- Do not commit local copies of BBDown, FFmpeg, FFprobe, or aria2c executables.
 - Release assets may include packaged installers or portable builds.
 - The source repository should contain GUI source code only.
 - Current builds may show Vite alias deprecation and chunk-size warnings; these do not block generated artifacts.

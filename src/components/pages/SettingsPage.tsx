@@ -74,14 +74,16 @@ const useStyles = makeStyles({
   },
   qrcode: {
     fontFamily: 'monospace',
-    whiteSpace: 'pre',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
     lineHeight: 1,
-    fontSize: '8px',
+    fontSize: '10px',
     backgroundColor: '#fff',
     color: '#000',
     padding: '10px',
     borderRadius: '4px',
     border: '1px solid var(--colorNeutralStroke1)',
+    maxWidth: '100%',
   },
   qrcodeImage: {
     width: '280px',
@@ -112,6 +114,7 @@ function ToolStatusRow({ name, tool }: { name: string; tool?: { exists: boolean;
 export function SettingsPage() {
   const styles = useStyles()
   const isElectron = isRunningInElectron()
+  const isMac = typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('mac')
   const { settings, updateSetting, saveSettings, tools, refreshTools } = useAppStore()
   const [saved, setSaved] = useState(false)
   const [accountStatus, setAccountStatus] = useState<AccountStatus>({ loggedIn: false })
@@ -148,7 +151,7 @@ export function SettingsPage() {
 
     loginUnsubscribeRef.current?.()
     loginUnsubscribeRef.current = api.bbdown.onQRCode((code: string) => {
-      setQrcode((prev) => prev + code)
+      setQrcode(code)
     })
 
     try {
@@ -200,7 +203,7 @@ export function SettingsPage() {
     const selected = settingKey === 'defaultWorkDir'
       ? await api.util.selectDirectory()
       : await api.util.selectFile([
-        { name: 'Executable', extensions: ['exe'] },
+        { name: 'Executable', extensions: ['*'] },
         { name: 'All Files', extensions: ['*'] },
       ])
 
@@ -319,9 +322,9 @@ export function SettingsPage() {
                 value={settings.bbdownPath}
                 onChange={(_, data) => updateSetting('bbdownPath', data.value || '')}
                 style={{ flex: 1 }}
-                placeholder="例如: C:\Tools\BBDown.exe"
+                placeholder={isMac ? '/Users/zhangtao/Downloads/BBDown' : 'C:\\Tools\\BBDown.exe'}
               />
-              <Tooltip content={isElectron ? '选择 BBDown.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+              <Tooltip content={isElectron ? '选择 BBDown 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
                 <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('bbdownPath')} disabled={!isElectron} />
               </Tooltip>
             </div>
@@ -336,13 +339,19 @@ export function SettingsPage() {
           <ToolStatusRow name="FFmpeg" tool={tools.ffmpeg} />
           <Field label="FFmpeg 路径">
             <div className={styles.pathRow}>
-              <Input value={settings.ffmpegPath} onChange={(_, data) => updateSetting('ffmpegPath', data.value || '')} style={{ flex: 1 }} />
-              <Tooltip content={isElectron ? '选择 ffmpeg.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+              <Input
+                value={settings.ffmpegPath}
+                onChange={(_, data) => updateSetting('ffmpegPath', data.value || '')}
+                style={{ flex: 1 }}
+                placeholder={isMac ? '/opt/homebrew/bin/ffmpeg' : 'C:\\Tools\\ffmpeg.exe'}
+              />
+              <Tooltip content={isElectron ? '选择 ffmpeg 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
                 <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('ffmpegPath')} disabled={!isElectron} />
               </Tooltip>
             </div>
             <div className={styles.downloadLinks}>
               <Text size={100}>下载: </Text>
+              <Link href="https://formulae.brew.sh/formula/ffmpeg" target="_blank">Homebrew</Link>
               <Link href="https://www.gyan.dev/ffmpeg/builds/" target="_blank">FFmpeg (gyan.dev)</Link>
               <Link href="https://github.com/BtbN/FFmpeg-Builds/releases" target="_blank">FFmpeg (GitHub)</Link>
             </div>
@@ -353,8 +362,13 @@ export function SettingsPage() {
           <ToolStatusRow name="aria2c" tool={tools.aria2c} />
           <Field label="aria2c 路径">
             <div className={styles.pathRow}>
-              <Input value={settings.aria2cPath} onChange={(_, data) => updateSetting('aria2cPath', data.value || '')} style={{ flex: 1 }} />
-              <Tooltip content={isElectron ? '选择 aria2c.exe' : '浏览器预览模式不支持原生文件选择'} relationship="label">
+              <Input
+                value={settings.aria2cPath}
+                onChange={(_, data) => updateSetting('aria2cPath', data.value || '')}
+                style={{ flex: 1 }}
+                placeholder={isMac ? '/opt/homebrew/bin/aria2c' : 'C:\\Tools\\aria2c.exe'}
+              />
+              <Tooltip content={isElectron ? '选择 aria2c 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
                 <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('aria2cPath')} disabled={!isElectron} />
               </Tooltip>
             </div>

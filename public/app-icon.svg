@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="160" x2="864" y1="128" y2="896" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#123458"/>
+      <stop offset="1" stop-color="#075985"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="326" x2="698" y1="230" y2="762" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="896" height="896" x="64" y="64" fill="url(#bg)" rx="220"/>
+  <path fill="#ffffff" fill-opacity="0.14" d="M248 228h528c44.2 0 80 35.8 80 80v408c0 44.2-35.8 80-80 80H248c-44.2 0-80-35.8-80-80V308c0-44.2 35.8-80 80-80Z"/>
+  <path fill="url(#arrow)" d="M560 218H464v268H342l170 190 170-190H560V218Z"/>
+  <path fill="#e0f2fe" d="M318 718h388c26.5 0 48 21.5 48 48s-21.5 48-48 48H318c-26.5 0-48-21.5-48-48s21.5-48 48-48Z"/>
+  <text x="512" y="420" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="128" font-weight="800" letter-spacing="0" text-anchor="middle">BB</text>
+</svg>

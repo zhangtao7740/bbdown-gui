@@ -211,7 +211,7 @@ export class PostProcessManager {
     onProgress?: (action: string, progress: ProcessProgress) => void
   ): Promise<{ success: boolean; newPath: string; errors: string[] }> {
     const errors: string[] = []
-    const ffmpegPath = ToolDetector.getToolPath('ffmpeg') || 'ffmpeg.exe'
+    const ffmpegPath = ToolDetector.getToolPath('ffmpeg') || (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
 
     const dir = path.dirname(filePath)
     const name = path.basename(filePath, path.extname(filePath))

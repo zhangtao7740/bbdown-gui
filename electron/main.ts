@@ -13,6 +13,7 @@ let isQuitting = false
 let ipcInitialized = false
 
 // process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+app.setAppUserModelId('com.bbdown.gui')
 
 function findAssetPath(fileName: string): string | null {
   const candidates = [
@@ -39,7 +40,10 @@ function createTray(): boolean {
       return false
     }
 
-    tray = new Tray(image)
+    const trayImage = process.platform === 'darwin'
+      ? image.resize({ width: 20, height: 20 })
+      : image.resize({ width: 24, height: 24 })
+    tray = new Tray(trayImage)
     const contextMenu = Menu.buildFromTemplate([
       { label: '显示窗口', click: () => showMainWindow() },
       { type: 'separator' },
@@ -81,13 +85,18 @@ function showMainWindow(): void {
 function createWindow() {
   createTray()
   const preloadPath = path.join(__dirname, 'preload.cjs')
+  const isMac = process.platform === 'darwin'
+  const appIconPath = findAssetPath('icon.png')
   mainWindow = new BrowserWindow({
+    title: 'BBDown GUI',
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 680,
-    frame: false,
-    titleBarStyle: 'hidden',
+    frame: isMac,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    trafficLightPosition: isMac ? { x: 16, y: 10 } : undefined,
+    icon: appIconPath || undefined,
     backgroundColor: '#ffffff',
     backgroundMaterial: 'mica',
     webPreferences: {

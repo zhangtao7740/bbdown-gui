@@ -14,9 +14,9 @@ export class TaskManager extends EventEmitter {
   private maxConcurrent: number = 2
   private requestedStops: Set<string> = new Set()
 
-  constructor(bbdownPath?: string) {
+  constructor(bbdownPath?: string, workingDir?: string) {
     super()
-    this.bbdown = new BBDownWrapper(bbdownPath)
+    this.bbdown = new BBDownWrapper(bbdownPath, workingDir)
     this.historyManager = new HistoryManager()
   }
 
