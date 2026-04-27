@@ -27,14 +27,22 @@ import { useAppStore } from '@/store/appStore'
 type AddTaskFeedback = 'idle' | 'adding' | 'added' | 'duplicate'
 
 const useStyles = makeStyles({
-  container: { padding: '20px', height: '100%', overflowY: 'auto', overflowX: 'hidden' },
-  inputSection: { display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-end', minWidth: 0 },
+  container: { padding: '20px', height: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' },
+  inputSection: { display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-end', flexWrap: 'wrap', minWidth: 0 },
   inputWrapper: { flex: 1, minWidth: 0 },
   buttonGroup: { display: 'flex', gap: '8px', flexShrink: 0 },
-  contentGrid: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '20px', minWidth: 0 },
+  contentGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 340px)',
+    gap: '20px',
+    minWidth: 0,
+    '@media (max-width: 1180px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
   previewColumn: { minWidth: 0 },
   previewCard: { marginBottom: '20px', overflow: 'hidden', minWidth: 0 },
-  previewHeader: { display: 'flex', gap: '16px', minWidth: 0 },
+  previewHeader: { display: 'flex', gap: '16px', minWidth: 0, flexWrap: 'wrap' },
   previewCover: { width: '168px', minWidth: '168px', height: '104px', objectFit: 'cover', borderRadius: '6px', backgroundColor: 'var(--colorNeutralBackground3)' },
   previewInfo: { flex: 1, minWidth: 0 },
   previewTitle: {
@@ -55,9 +63,10 @@ const useStyles = makeStyles({
   pageInfo: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   sidebarColumn: { minWidth: 0 },
   sidebarCard: { marginBottom: '16px', minWidth: 0 },
-  toolRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' },
-  toolStatus: { display: 'flex', alignItems: 'center', gap: '6px' },
-  pathRow: { display: 'flex', gap: '8px' },
+  toolRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '8px 0', minWidth: 0 },
+  toolStatus: { display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 },
+  toolVersion: { display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 },
+  pathRow: { display: 'flex', gap: '8px', minWidth: 0 },
   errorList: { marginBottom: '12px', padding: '10px 12px', borderRadius: '6px', backgroundColor: 'var(--colorPaletteRedBackground1)', color: 'var(--colorPaletteRedForeground1)' },
   browserBanner: { marginBottom: '12px', padding: '10px 12px', borderRadius: '6px', backgroundColor: 'var(--colorPaletteYellowBackground2)' },
 })
@@ -154,7 +163,7 @@ export function DownloadPage() {
   const handleSelectTool = async (toolName: 'bbdown' | 'ffmpeg' | 'aria2c') => {
     if (!isElectron) return
     const selected = await api.util.selectFile([
-      { name: 'Executable', extensions: ['exe'] },
+      { name: 'Executable', extensions: ['*'] },
       { name: 'All Files', extensions: ['*'] },
     ])
     if (!selected) return
@@ -281,7 +290,7 @@ export function DownloadPage() {
                   <Text weight="semibold">{toolName === 'bbdown' ? 'BBDown' : toolName === 'ffmpeg' ? 'FFmpeg' : 'aria2c'}</Text>
                   {tools[toolName]?.exists ? <CheckmarkCircle20Regular style={{ color: '#107C10' }} /> : <DismissCircle20Regular style={{ color: '#D13438' }} />}
                 </div>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <div className={styles.toolVersion}>
                   <Text size={200}>{tools[toolName]?.exists ? `v${tools[toolName].version}` : toolName === 'aria2c' ? '可选' : '未检测到'}</Text>
                   <Tooltip content={isElectron ? '手动选择执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
                     <Button appearance="subtle" size="small" icon={<FolderOpen20Regular />} onClick={() => handleSelectTool(toolName)} disabled={!isElectron} />
@@ -300,7 +309,7 @@ export function DownloadPage() {
             <Text weight="semibold" block style={{ marginBottom: '12px' }}>下载选项</Text>
             <Field label="保存到">
               <div className={styles.pathRow}>
-                <Input value={downloadOptions.workDir} onChange={(_, data) => updateDownloadOption('workDir', data.value)} style={{ flex: 1 }} />
+                <Input value={downloadOptions.workDir} onChange={(_, data) => updateDownloadOption('workDir', data.value)} style={{ flex: 1, minWidth: 0 }} />
                 <Tooltip content={isElectron ? '选择保存目录' : '浏览器预览模式不支持原生目录选择'} relationship="label">
                   <Button icon={<FolderOpen20Regular />} onClick={handleSelectWorkDir} disabled={!isElectron} />
                 </Tooltip>

@@ -19,17 +19,19 @@ import { useAppStore } from '@/store/appStore'
 import type { DownloadTask, TaskStatus } from '../../../electron/core/types'
 
 const useStyles = makeStyles({
-  container: { padding: '20px', height: '100%', overflowY: 'auto' },
-  taskGroup: { marginBottom: '12px', overflow: 'hidden' },
-  groupHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' },
+  container: { padding: '20px', height: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' },
+  taskGroup: { marginBottom: '12px', overflow: 'hidden', minWidth: 0 },
+  groupHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '12px', minWidth: 0 },
   groupMeta: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' },
   taskRow: { padding: '10px 0', borderTop: '1px solid var(--colorNeutralStroke2)' },
-  taskRowHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' },
+  taskRowHeader: { display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 },
+  taskActions: { display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' },
   statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '2px 8px', borderRadius: '10px' },
   logPanel: { maxHeight: '160px', overflowY: 'auto', marginTop: '8px', padding: '6px', backgroundColor: 'var(--colorNeutralBackground3)', borderRadius: '4px', fontSize: '11px', fontFamily: 'Consolas, monospace' },
-  logLine: { display: 'flex', gap: '8px', padding: '1px 0' },
+  logLine: { display: 'grid', gridTemplateColumns: '64px 44px minmax(0, 1fr)', gap: '8px', padding: '1px 0', minWidth: 0 },
   logTime: { color: 'var(--colorNeutralForeground4)', minWidth: '64px' },
   logSource: { minWidth: '44px' },
+  logMessage: { minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' },
   logErr: { color: '#D13438' },
   emptyState: { textAlign: 'center', padding: '60px 20px', color: 'var(--colorNeutralForeground3)' },
 })
@@ -170,7 +172,7 @@ export function TasksPage() {
                         <Text size={200}>进度：{task.progress}%</Text>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className={styles.taskActions}>
                       {(task.status === 'waiting' || task.status === 'paused' || task.status === 'failed') && (
                         <Tooltip content="开始" relationship="label">
                           <Button appearance="subtle" icon={<Play20Regular />} onClick={() => api.task.start(task.id)} />
@@ -204,7 +206,7 @@ export function TasksPage() {
                         <div key={`${entry.timestamp}-${index}`} className={styles.logLine}>
                           <span className={styles.logTime}>{new Date(entry.timestamp).toLocaleTimeString()}</span>
                           <span className={`${styles.logSource} ${entry.level === 'error' ? styles.logErr : ''}`}>{entry.source}</span>
-                          <span className={entry.level === 'error' ? styles.logErr : undefined}>{entry.message}</span>
+                          <span className={`${styles.logMessage} ${entry.level === 'error' ? styles.logErr : ''}`}>{entry.message}</span>
                         </div>
                       ))}
                     </div>

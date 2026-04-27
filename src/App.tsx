@@ -87,7 +87,7 @@ function AppContent() {
       <TitleBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar selectedTab={selectedTab} onTabChange={setSelectedTab} activeTaskCount={activeTaskCount} />
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           {renderPage(selectedTab)}
         </div>
       </div>

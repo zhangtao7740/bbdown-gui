@@ -91,7 +91,7 @@ function createWindow() {
     title: 'BBDown GUI',
     width: 1280,
     height: 800,
-    minWidth: 1024,
+    minWidth: 920,
     minHeight: 680,
     frame: isMac,
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
@@ -149,6 +149,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('activate', () => {

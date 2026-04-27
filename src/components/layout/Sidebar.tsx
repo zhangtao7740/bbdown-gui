@@ -31,8 +31,10 @@ export function Sidebar({ selectedTab, onTabChange, activeTaskCount }: SidebarPr
     <div
       style={{
         width: '180px',
+        flexShrink: 0,
         height: '100%',
         padding: '8px',
+        boxSizing: 'border-box',
         borderRight: '1px solid var(--colorNeutralStroke2)',
         display: 'flex',
         flexDirection: 'column',

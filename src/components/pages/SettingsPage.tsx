@@ -42,7 +42,7 @@ type AccountStatus = {
 }
 
 const useStyles = makeStyles({
-  container: { padding: '20px', height: '100%', overflowY: 'auto' },
+  container: { padding: '20px', height: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' },
   section: { marginBottom: '24px' },
   sectionTitle: { marginBottom: '12px', fontWeight: 600 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' },
@@ -63,8 +63,8 @@ const useStyles = makeStyles({
   saveButton: { marginTop: '24px' },
   note: { color: 'var(--colorNeutralForeground3)', marginTop: '8px' },
   downloadLinks: { marginTop: '4px', display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  accountRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' },
-  accountActions: { display: 'flex', alignItems: 'center', gap: '8px' },
+  accountRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', minWidth: 0 },
+  accountActions: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
   qrcodeContainer: {
     display: 'flex',
     flexDirection: 'column',
