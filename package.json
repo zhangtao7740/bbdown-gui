@@ -19,20 +19,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/build-preload.mjs",
     "build:icons": "node scripts/generate-icons.mjs",
-    "build:mac-assets": "node scripts/prepare-macos-assets.mjs",
-    "build:mac-assets:universal": "node scripts/prepare-macos-assets.mjs --require-universal",
     "lint": "eslint .",
     "preview": "vite preview",
     "pack": "npm run build:icons && npm run build && electron-builder --dir",
     "pack:mac": "npm run pack:mac:universal",
-    "pack:mac:arm64": "npm run build:icons && npm run build && npm run build:mac-assets && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
-    "pack:mac:x64": "npm run build:icons && npm run build && npm run build:mac-assets && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64",
-    "pack:mac:universal": "npm run build:icons && npm run build && npm run build:mac-assets:universal && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --universal",
+    "pack:mac:arm64": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
+    "pack:mac:x64": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --x64",
+    "pack:mac:universal": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --universal",
     "dist": "npm run build:icons && npm run build && electron-builder",
     "dist:mac": "npm run dist:mac:universal",
-    "dist:mac:arm64": "npm run build:icons && npm run build && npm run build:mac-assets && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64",
-    "dist:mac:x64": "npm run build:icons && npm run build && npm run build:mac-assets && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --x64",
-    "dist:mac:universal": "npm run build:icons && npm run build && npm run build:mac-assets:universal && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal"
+    "dist:mac:arm64": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64",
+    "dist:mac:x64": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --x64",
+    "dist:mac:universal": "npm run build:icons && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal"
   },
   "build": {
     "appId": "com.bbdown.gui",
@@ -47,20 +45,9 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
-      "x64ArchFiles": "Contents/Resources/tools/darwin-*/BBDown",
       "target": [
         "dmg",
         "zip"
-      ],
-      "extraResources": [
-        {
-          "from": "build/tools",
-          "to": "tools",
-          "filter": [
-            "**/*",
-            "!BBDown"
-          ]
-        }
       ]
     },
     "win": {

@@ -129,13 +129,9 @@ export class ToolDetector {
   }
 
   private static buildCandidatePaths(exeName: string): string[] {
-    const platformArch = `${process.platform}-${process.arch}`
     const basePaths = [
-      path.join(process.cwd(), 'build', 'tools', platformArch),
       process.cwd(),
       path.dirname(process.execPath),
-      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools', platformArch)] : []),
-      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools')] : []),
       process.resourcesPath,
       '/opt/homebrew/bin',
       '/usr/local/bin',

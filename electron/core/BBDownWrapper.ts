@@ -83,14 +83,10 @@ export class BBDownWrapper {
   }
 
   private findBBDown(): string {
-    const platformArch = `${process.platform}-${process.arch}`
     const executableNames = process.platform === 'win32' ? ['BBDown.exe', 'BBDown'] : ['BBDown', 'BBDown.exe']
     const candidateBases = [
-      path.join(process.cwd(), 'build', 'tools', platformArch),
       process.cwd(),
       path.dirname(process.execPath),
-      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools', platformArch)] : []),
-      ...(process.resourcesPath ? [path.join(process.resourcesPath, 'tools')] : []),
       process.resourcesPath,
     ].filter(Boolean)
 

@@ -124,30 +124,10 @@ which ffmpeg
 which ffprobe
 ```
 
-BBDown can be supplied at package time without committing the binary. The default local path used by this repo is:
+BBDown is not bundled into macOS or Windows release artifacts. Install or download it separately and configure the executable path in Settings. The default local path used on this machine is:
 
 ```text
 /Users/zhangtao/Downloads/BBDown
-```
-
-For Apple Silicon only builds, BBDown can be supplied with `BBDOWN_BIN_PATH` or `BBDOWN_ARM64_BIN_PATH`:
-
-```sh
-export BBDOWN_BIN_PATH=/absolute/path/to/BBDown
-```
-
-Universal macOS builds require both BBDown architectures. The default paths are:
-
-```text
-/Users/zhangtao/Downloads/BBDown
-/Users/zhangtao/Downloads/BBDown-osx-x64/BBDown
-```
-
-If either binary is stored elsewhere, set the architecture-specific paths before packaging:
-
-```sh
-export BBDOWN_ARM64_BIN_PATH=/absolute/path/to/osx-arm64/BBDown
-export BBDOWN_X64_BIN_PATH=/absolute/path/to/osx-x64/BBDown
 ```
 
 Build an unsigned local universal macOS deliverable:
@@ -157,7 +137,7 @@ npm install
 npm run dist:mac
 ```
 
-`npm run dist:mac` is the universal handoff build. It performs the renderer/main build, copies both BBDown architectures into the packaged app resources, fixes executable bits, removes local quarantine attributes from those copied binaries, validates the Homebrew FFmpeg paths, and then emits macOS artifacts under `release/`.
+`npm run dist:mac` is the universal handoff build. It performs the renderer/main build and emits macOS artifacts under `release/`. The app remains a GUI shell and resolves BBDown, FFmpeg/FFprobe, and aria2c from user settings or system paths at runtime.
 
 Expected universal output:
 
