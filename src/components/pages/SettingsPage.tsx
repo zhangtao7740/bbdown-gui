@@ -155,6 +155,12 @@ export function SettingsPage() {
     })
 
     try {
+      if (settings.bbdownPath.trim()) {
+        const tool = await api.util.setToolPath('bbdown', settings.bbdownPath.trim())
+        if (!tool.exists) {
+          throw new Error(`未检测到 BBDown：${settings.bbdownPath.trim()}`)
+        }
+      }
       const result = await api.bbdown.login()
       if (result.success) {
         setLoginStatus('success')
