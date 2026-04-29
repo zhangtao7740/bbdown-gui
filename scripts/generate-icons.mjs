@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import sharp from 'sharp'
 
 const projectRoot = process.cwd()
 const sourceSvg = path.join(projectRoot, 'public', 'app-icon.svg')
@@ -16,12 +17,22 @@ function run(command, args) {
   return result
 }
 
+function commandExists(command) {
+  const probe = process.platform === 'win32'
+    ? spawnSync('where.exe', [command], { encoding: 'utf-8' })
+    : spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf-8' })
+  return probe.status === 0
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
 }
 
-function renderPng(size, outputPath) {
-  run('sips', ['-s', 'format', 'png', '-z', String(size), String(size), sourceSvg, '--out', outputPath])
+async function renderPng(size, outputPath) {
+  await sharp(sourceSvg)
+    .resize(size, size)
+    .png()
+    .toFile(outputPath)
 }
 
 function createIco(entries, outputPath) {
@@ -60,8 +71,8 @@ fs.rmSync(tempDir, { recursive: true, force: true })
 ensureDir(iconsetDir)
 ensureDir(tempDir)
 
-renderPng(1024, path.join(projectRoot, 'public', 'icon.png'))
-renderPng(64, path.join(projectRoot, 'public', 'tray.png'))
+await renderPng(1024, path.join(projectRoot, 'public', 'icon.png'))
+await renderPng(64, path.join(projectRoot, 'public', 'tray.png'))
 
 const iconsetSizes = [
   ['icon_16x16.png', 16],
@@ -77,19 +88,23 @@ const iconsetSizes = [
 ]
 
 for (const [name, size] of iconsetSizes) {
-  renderPng(size, path.join(iconsetDir, name))
+  await renderPng(size, path.join(iconsetDir, name))
 }
 
-run('iconutil', ['-c', 'icns', iconsetDir, '-o', path.join(buildDir, 'icon.icns')])
+if (commandExists('iconutil')) {
+  run('iconutil', ['-c', 'icns', iconsetDir, '-o', path.join(buildDir, 'icon.icns')])
+} else {
+  console.warn('Skipped build/icon.icns because iconutil is not available on this platform.')
+}
 
-const icoEntries = [16, 32, 48, 256].map((size) => {
+const icoEntries = await Promise.all([16, 32, 48, 256].map(async (size) => {
   const file = path.join(tempDir, `icon-${size}.png`)
-  renderPng(size, file)
+  await renderPng(size, file)
   return { size, file }
-})
+}))
 createIco(icoEntries, path.join(projectRoot, 'public', 'icon.ico'))
 
 fs.rmSync(iconsetDir, { recursive: true, force: true })
 fs.rmSync(tempDir, { recursive: true, force: true })
 
-console.log('Generated public/icon.png, public/tray.png, public/icon.ico, build/icon.icns')
+console.log('Generated public/icon.png, public/tray.png and public/icon.ico')

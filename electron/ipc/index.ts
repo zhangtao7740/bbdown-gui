@@ -188,6 +188,12 @@ function setupUtilityHandlers(): void {
     return error === ''
   })
 
+  ipcMain.handle('util:openExternal', async (_, url: string) => {
+    const { shell } = await import('electron')
+    await shell.openExternal(url)
+    return true
+  })
+
   ipcMain.handle('util:selectDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]

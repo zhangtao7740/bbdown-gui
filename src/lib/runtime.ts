@@ -86,6 +86,7 @@ function createBrowserStub(): ElectronAPI {
       checkTool: (toolName: string) => Promise.resolve({ name: toolName, exists: false, version: 'Electron only', path: browserModeMessage }),
       setToolPath: (toolName: string, toolPath: string) => Promise.resolve({ name: toolName, exists: false, version: 'Electron only', path: toolPath || browserModeMessage }),
       openDirectory: noopBool,
+      openExternal: noopBool,
       selectDirectory: noopNull,
       selectFile: noopNull,
       getPath: noopString,

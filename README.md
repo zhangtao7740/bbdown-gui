@@ -1,6 +1,6 @@
 # BBDown GUI
 
-An Electron + React + Fluent UI desktop GUI for [BBDown](https://github.com/nilaoda/BBDown).
+An Electron + React desktop GUI for [BBDown](https://github.com/nilaoda/BBDown), built with local design tokens, Radix primitives, and lucide-react icons.
 
 BBDown GUI is an orchestration layer. It handles task setup, option selection, logs, local history, and artifact management. Actual parsing, downloading, muxing, media probing, and transcoding are still delegated to local command-line tools:
 
@@ -104,7 +104,7 @@ npm run build
 
 Package:
 
-```sh
+```powershell
 npm run dist
 ```
 
@@ -113,6 +113,16 @@ Build artifacts are emitted to:
 ```text
 release/
 ```
+
+Expected Windows output:
+
+```text
+release/win-unpacked/BBDown GUI.exe
+release/BBDown GUI Setup 0.2.0.exe
+release/BBDown GUI 0.2.0.exe
+```
+
+`npm run dist` also regenerates `public/icon.png`, `public/tray.png`, and `public/icon.ico` from `public/app-icon.svg`.
 
 ### macOS Build
 
@@ -143,8 +153,8 @@ Expected universal output:
 
 ```text
 release/mac-universal/BBDown GUI.app
-release/BBDown GUI-0.1.4-universal.dmg
-release/BBDown GUI-0.1.4-universal-mac.zip
+release/BBDown GUI-0.2.0-universal.dmg
+release/BBDown GUI-0.2.0-universal-mac.zip
 ```
 
 Architecture-specific builds remain available with `npm run dist:mac:arm64` and `npm run dist:mac:x64`.
@@ -155,9 +165,9 @@ The local macOS script disables automatic certificate discovery with `CSC_IDENTI
 
 - Do not commit `BBDown.data`; it may contain login state or sensitive data.
 - Do not commit local copies of BBDown, FFmpeg, FFprobe, or aria2c executables.
-- Release assets may include packaged installers or portable builds.
+- Do not commit generated release installers, portable builds, `dist/`, or `dist-electron/`.
 - The source repository should contain GUI source code only.
-- Current builds may show Vite alias deprecation and chunk-size warnings; these do not block generated artifacts.
+- Current builds may show Vite alias deprecation and preload output-option warnings; these do not block generated artifacts.
 
 ## License
 

@@ -1,0 +1,301 @@
+.tasks-page {
+  padding: var(--space-20);
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tasks-page-header {
+  margin-bottom: var(--space-20);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+}
+
+.tasks-toolbar {
+  display: flex;
+  gap: var(--space-8);
+  flex-shrink: 0;
+}
+
+.tasks-stats-chips {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tasks-page-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  line-height: var(--line-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.tasks-page-subtitle {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--line-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--space-4);
+}
+
+.tasks-group-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  padding: var(--space-16);
+  margin-bottom: var(--space-12);
+}
+
+.tasks-group-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  align-items: flex-start;
+  margin-bottom: var(--space-12);
+  min-width: 0;
+}
+
+.tasks-group-cover {
+  width: 96px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-6);
+  background: var(--color-surface-muted);
+  flex-shrink: 0;
+}
+
+.tasks-group-cover-empty {
+  border: 1px solid var(--color-border);
+}
+
+.tasks-group-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tasks-group-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--line-md);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-group-meta {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.tasks-group-progress {
+  height: 6px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-4);
+  overflow: hidden;
+  margin-top: var(--space-8);
+}
+
+.tasks-group-progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-4);
+  transition: width var(--duration-normal) var(--ease-standard);
+}
+
+.tasks-task-row {
+  padding: var(--space-10) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.tasks-task-row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-6);
+}
+
+.tasks-task-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tasks-task-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tasks-task-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: var(--line-md);
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-task-meta {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.tasks-task-actions {
+  display: flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tasks-task-progress {
+  height: 4px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-4);
+  overflow: hidden;
+  margin-top: var(--space-8);
+}
+
+.tasks-task-progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-4);
+  transition: width var(--duration-normal) var(--ease-standard);
+}
+
+.tasks-log-panel {
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: var(--space-8);
+  padding: var(--space-6);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-6);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}
+
+.tasks-log-line {
+  display: grid;
+  grid-template-columns: 64px 44px minmax(0, 1fr);
+  gap: var(--space-8);
+  padding: 1px 0;
+  min-width: 0;
+}
+
+.tasks-log-time {
+  color: var(--color-text-muted);
+  min-width: 64px;
+}
+
+.tasks-log-source {
+  min-width: 44px;
+}
+
+.tasks-log-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--color-text);
+}
+
+.tasks-log-error {
+  color: var(--color-danger);
+}
+
+.tasks-empty-state {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  padding: var(--space-24) var(--space-20);
+  text-align: center;
+}
+
+.tasks-empty-state-art {
+  width: min(250px, 80%);
+  height: auto;
+  margin-bottom: var(--space-12);
+}
+
+.tasks-empty-state-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  line-height: var(--line-lg);
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: var(--space-8);
+}
+
+.tasks-empty-state-subtitle {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--line-sm);
+  color: var(--color-text-muted);
+}
+
+.tasks-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tasks-status-waiting {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.tasks-status-downloading {
+  background: rgba(15, 108, 189, 0.1);
+  color: var(--color-primary);
+}
+
+.tasks-status-processing {
+  background: rgba(91, 95, 199, 0.1);
+  color: #5b5fc7;
+}
+
+.tasks-status-paused {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.tasks-status-completed {
+  background: rgba(31, 164, 99, 0.1);
+  color: var(--color-success);
+}
+
+.tasks-status-failed {
+  background: rgba(209, 52, 56, 0.1);
+  color: var(--color-danger);
+}
+
+.tasks-status-cancelled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.tasks-meta-item {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--line-xs);
+  color: var(--color-text-muted);
+}

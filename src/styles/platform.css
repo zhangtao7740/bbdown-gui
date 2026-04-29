@@ -1,0 +1,42 @@
+.platform-win32 {
+  --titlebar-height: var(--titlebar-height-win);
+  --titlebar-controls-width: 138px;
+}
+
+.platform-darwin {
+  --titlebar-height: var(--titlebar-height-mac);
+  --titlebar-controls-width: 78px;
+}
+
+.platform-linux {
+  --titlebar-height: var(--titlebar-height-win);
+  --titlebar-controls-width: 0px;
+}
+
+.platform-win32 .titlebar {
+  justify-content: flex-end;
+}
+
+.platform-darwin .titlebar {
+  justify-content: flex-start;
+  padding-left: var(--space-12);
+}
+
+.platform-win32 .window-controls {
+  gap: 0;
+}
+
+.platform-darwin .window-controls {
+  gap: var(--space-8);
+}
+
+.platform-win32 .window-control-btn {
+  width: 46px;
+  height: 32px;
+}
+
+.platform-darwin .window-control-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}

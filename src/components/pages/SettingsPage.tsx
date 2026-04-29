@@ -1,128 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Card,
-  Text,
-  Dropdown,
-  Option,
-  Field,
-  Input,
-  Button,
-  SpinButton,
-  makeStyles,
-  Switch,
-  Divider,
-  Dialog,
-  DialogTrigger,
-  DialogSurface,
-  DialogTitle,
-  DialogContent,
-  DialogBody,
-  DialogActions,
-  Link,
-  Spinner,
-  Tooltip,
-  Badge,
-} from '@fluentui/react-components'
-import {
-  FolderOpen20Regular,
-  Save20Regular,
-  ArrowRepeatAll20Regular,
-  CheckmarkCircle20Regular,
-  DismissCircle20Regular,
-  Person20Regular,
-  SignOut20Regular,
-} from '@fluentui/react-icons'
+import { useCallback, useEffect, useState, useRef } from 'react'
+import { FolderOpen, Save, RotateCw, CheckCircle2, XCircle, User, LogOut } from 'lucide-react'
+import { Button, Badge, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Switch, Tooltip, Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter, ContextMenu } from '@/components/ui'
 import { useAppStore } from '@/store/appStore'
 import { api, isRunningInElectron } from '@/lib/runtime'
+import './SettingsPage.css'
 
-type AccountStatus = {
-  loggedIn: boolean
-  path?: string
-  updatedAt?: string
-}
-
-const useStyles = makeStyles({
-  container: { padding: '20px', height: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' },
-  section: { marginBottom: '24px' },
-  sectionTitle: { marginBottom: '12px', fontWeight: 600 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' },
-  toolRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px',
-    backgroundColor: 'var(--colorNeutralBackground1)',
-    borderRadius: '4px',
-    marginBottom: '8px',
-  },
-  toolInfo: { display: 'flex', alignItems: 'center', gap: '8px' },
-  toolName: { fontWeight: 500, textTransform: 'uppercase' },
-  statusOK: { color: '#107C10' },
-  statusError: { color: '#D13438' },
-  pathRow: { display: 'flex', gap: '8px' },
-  saveButton: { marginTop: '24px' },
-  note: { color: 'var(--colorNeutralForeground3)', marginTop: '8px' },
-  downloadLinks: { marginTop: '4px', display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  accountRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', minWidth: 0 },
-  accountActions: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-  qrcodeContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '16px',
-    padding: '20px',
-  },
-  qrcode: {
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap',
-    overflowWrap: 'anywhere',
-    lineHeight: 1,
-    fontSize: '10px',
-    backgroundColor: '#fff',
-    color: '#000',
-    padding: '10px',
-    borderRadius: '4px',
-    border: '1px solid var(--colorNeutralStroke1)',
-    maxWidth: '100%',
-  },
-  qrcodeImage: {
-    width: '280px',
-    height: '280px',
-    imageRendering: 'pixelated',
-    border: '1px solid var(--colorNeutralStroke1)',
-    borderRadius: '4px',
-  },
-})
+type AccountStatus = { loggedIn: boolean; path?: string; updatedAt?: string }
+type ToolPathSetting = 'bbdownPath' | 'ffmpegPath' | 'aria2cPath' | 'defaultWorkDir'
 
 function ToolStatusRow({ name, tool }: { name: string; tool?: { exists: boolean; version: string; path?: string } }) {
-  const styles = useStyles()
   return (
-    <div className={styles.toolRow}>
-      <div className={styles.toolInfo}>
-        <span className={styles.toolName}>{name}</span>
-        {tool?.exists ? (
-          <CheckmarkCircle20Regular className={styles.statusOK} />
-        ) : (
-          <DismissCircle20Regular className={styles.statusError} />
-        )}
+    <div className="settings-tool-row">
+      <div className="settings-tool-info">
+        <span className="settings-tool-name">{name}</span>
+        {tool?.exists ? <CheckCircle2 size={16} style={{ color: 'var(--color-success)' }} /> : <XCircle size={16} style={{ color: 'var(--color-danger)' }} />}
       </div>
-      <Text size={200}>{tool?.exists ? `v${tool.version}` : '未检测到'}</Text>
+      <span className="settings-tool-version">{tool?.exists ? `v${tool.version}` : '未检测到'}</span>
     </div>
   )
 }
 
 export function SettingsPage() {
-  const styles = useStyles()
   const isElectron = isRunningInElectron()
-  const isMac = typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('mac')
   const { settings, updateSetting, saveSettings, tools, refreshTools } = useAppStore()
   const [saved, setSaved] = useState(false)
   const [accountStatus, setAccountStatus] = useState<AccountStatus>({ loggedIn: false })
-
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
-  const [loginStatus, setLoginStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle')
+  const [loginStatus, setLoginStatus] = useState<'idle' | 'scanning' | 'success' | 'error' | 'cancelled'>('idle')
   const [qrcode, setQrcode] = useState('')
   const [loginError, setLoginError] = useState('')
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const loginUnsubscribeRef = useRef<(() => void) | null>(null)
   const loginRunningRef = useRef(false)
 
@@ -136,31 +43,21 @@ export function SettingsPage() {
 
   useEffect(() => {
     refreshTools()
-    queueMicrotask(() => {
-      void refreshAccountStatus()
-    })
+    queueMicrotask(() => { void refreshAccountStatus() })
   }, [refreshTools, refreshAccountStatus])
 
   const handleLogin = async () => {
-    if (!isElectron) return
-    if (loginRunningRef.current) return
+    if (!isElectron || loginRunningRef.current) return
     loginRunningRef.current = true
     setLoginStatus('scanning')
     setQrcode('')
     setLoginError('')
 
-    loginUnsubscribeRef.current?.()
     loginUnsubscribeRef.current = api.bbdown.onQRCode((code: string) => {
       setQrcode(code)
     })
 
     try {
-      if (settings.bbdownPath.trim()) {
-        const tool = await api.util.setToolPath('bbdown', settings.bbdownPath.trim())
-        if (!tool.exists) {
-          throw new Error(`未检测到 BBDown：${settings.bbdownPath.trim()}`)
-        }
-      }
       const result = await api.bbdown.login()
       if (result.success) {
         setLoginStatus('success')
@@ -170,9 +67,9 @@ export function SettingsPage() {
         setLoginStatus('error')
         setLoginError(result.error || '登录失败')
       }
-    } catch (err) {
+    } catch {
       setLoginStatus('error')
-      setLoginError(err instanceof Error ? err.message : '未知错误')
+      setLoginError('登录失败')
     } finally {
       loginRunningRef.current = false
       loginUnsubscribeRef.current?.()
@@ -187,33 +84,26 @@ export function SettingsPage() {
     loginUnsubscribeRef.current = null
     setQrcode('')
     setLoginError('')
-    setLoginStatus('idle')
+    setLoginStatus('cancelled')
   }
 
   const handleLogout = async () => {
     if (!isElectron || !accountStatus.loggedIn) return
-    const confirmed = window.confirm('登出会删除 BBDown.data 本地登录凭据。确认继续？')
-    if (!confirmed) return
     await api.bbdown.logout()
+    setLogoutOpen(false)
     await refreshAccountStatus()
   }
 
-  useEffect(() => {
-    return () => {
-      void cancelLogin()
-    }
-  }, [])
-
-  const handleSelectPath = async (settingKey: 'bbdownPath' | 'ffmpegPath' | 'aria2cPath' | 'defaultWorkDir') => {
+  const handleSelectPath = async (settingKey: ToolPathSetting) => {
     if (!isElectron) return
     const selected = settingKey === 'defaultWorkDir'
       ? await api.util.selectDirectory()
-      : await api.util.selectFile([
-        { name: 'Executable', extensions: ['*'] },
-        { name: 'All Files', extensions: ['*'] },
-      ])
-
+      : await api.util.selectFile([{ name: 'Executable', extensions: ['*'] }])
     if (selected) updateSetting(settingKey, selected)
+  }
+
+  const pastePath = async (settingKey: ToolPathSetting) => {
+    updateSetting(settingKey, await navigator.clipboard.readText())
   }
 
   const handleSave = async () => {
@@ -229,231 +119,354 @@ export function SettingsPage() {
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>账号 / Cookie</Text>
-        <Card>
-          <div className={styles.accountRow}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Text weight="semibold">Bilibili 登录状态</Text>
-                <Badge color={accountStatus.loggedIn ? 'success' : 'danger'}>
+    <div className="settings-page">
+      <div className="settings-section">
+        <div className="settings-section-title">账号 / Cookie</div>
+        <div className="settings-card">
+          <ContextMenu
+            items={[
+              { label: '扫码登录', onSelect: () => { setIsLoginDialogOpen(true); void handleLogin() }, disabled: !isElectron },
+              { label: '刷新状态', onSelect: refreshAccountStatus, disabled: !isElectron },
+              { label: '退出登录', onSelect: () => setLogoutOpen(true), disabled: !isElectron || !accountStatus.loggedIn, danger: true },
+            ]}
+          >
+            <div className="settings-account-row">
+            <div className="settings-account-info">
+              <div className="settings-account-status">
+                <span style={{ fontWeight: 500 }}>Bilibili 登录状态</span>
+                <Badge variant={accountStatus.loggedIn ? 'success' : 'danger'}>
                   {accountStatus.loggedIn ? '已登录' : '未登录'}
                 </Badge>
               </div>
-              <Text size={200} block className={styles.note}>
-                {accountStatus.loggedIn
-                  ? `凭据文件：${accountStatus.path || 'BBDown.data'}`
-                  : '登录会调用 BBDown login，GUI 不直接保存账号密码。'}
-              </Text>
+              <div className="settings-account-note">
+                {accountStatus.loggedIn ? `凭据文件：${accountStatus.path || 'BBDown.data'}` : '登录会调用 BBDown login，GUI 不直接保存账号密码。'}
+              </div>
             </div>
-            <div className={styles.accountActions}>
-              <Dialog open={isLoginDialogOpen} onOpenChange={(_, data) => {
-                setIsLoginDialogOpen(data.open)
-                if (!data.open) void cancelLogin()
-              }}>
-                <DialogTrigger disableButtonEnhancement>
-                  <Tooltip content={isElectron ? '调用 BBDown 扫码登录' : '浏览器预览模式不支持扫码登录'} relationship="label">
-                    <Button icon={<Person20Regular />} disabled={!isElectron} onClick={() => {
-                      setIsLoginDialogOpen(true)
-                      void handleLogin()
-                    }}>
-                      扫码登录
-                    </Button>
-                  </Tooltip>
-                </DialogTrigger>
-                <DialogSurface>
-                  <DialogBody>
-                    <DialogTitle>B站扫码登录</DialogTitle>
-                    <DialogContent>
-                      <div className={styles.qrcodeContainer}>
-                        {loginStatus === 'scanning' && !qrcode && (
-                          <>
-                            <Spinner label="正在初始化登录..." />
-                            <Text size={200} block className={styles.note}>请稍候，正在获取登录二维码...</Text>
-                          </>
-                        )}
-                        {qrcode && loginStatus === 'scanning' && (
-                          <>
-                            {qrcode.startsWith('data:image/') ? (
-                              <img className={styles.qrcodeImage} src={qrcode} alt="Bilibili 登录二维码" />
-                            ) : (
-                              <div className={styles.qrcode}>{qrcode}</div>
-                            )}
-                            <Text weight="semibold">请使用 Bilibili 手机客户端扫码</Text>
-                          </>
-                        )}
-                        {loginStatus === 'success' && (
-                          <>
-                            <CheckmarkCircle20Regular style={{ fontSize: '48px', color: '#107C10' }} />
-                            <Text weight="semibold" size={500}>登录成功</Text>
-                          </>
-                        )}
-                        {loginStatus === 'error' && (
-                          <>
-                            <DismissCircle20Regular style={{ fontSize: '48px', color: '#D13438' }} />
-                            <Text weight="semibold">登录失败</Text>
-                            <Text size={200} className={styles.statusError}>{loginError}</Text>
-                            <Button appearance="primary" onClick={handleLogin}>重试</Button>
-                          </>
-                        )}
-                      </div>
-                    </DialogContent>
-                    <DialogActions>
-                      <DialogTrigger disableButtonEnhancement>
-                        <Button appearance="secondary" onClick={() => void cancelLogin()}>关闭</Button>
-                      </DialogTrigger>
-                    </DialogActions>
-                  </DialogBody>
-                </DialogSurface>
-              </Dialog>
-              <Button icon={<SignOut20Regular />} disabled={!isElectron || !accountStatus.loggedIn} onClick={handleLogout}>
-                登出
+            <div className="settings-account-actions">
+              <Tooltip content={isElectron ? '调用 BBDown 扫码登录' : '浏览器预览模式不支持扫码登录'}>
+                <Button variant="ghost" disabled={!isElectron} onClick={() => { setIsLoginDialogOpen(true); void handleLogin() }}>
+                  <User size={16} />
+                  <span>扫码登录</span>
+                </Button>
+              </Tooltip>
+              <Button variant="ghost" disabled={!isElectron || !accountStatus.loggedIn} onClick={() => setLogoutOpen(true)}>
+                <LogOut size={16} />
+                <span>登出</span>
               </Button>
-              <Button appearance="subtle" icon={<ArrowRepeatAll20Regular />} disabled={!isElectron} onClick={refreshAccountStatus}>
-                刷新
+              <Button variant="ghost" disabled={!isElectron} onClick={refreshAccountStatus}>
+                <RotateCw size={16} />
               </Button>
             </div>
-          </div>
-        </Card>
+            </div>
+          </ContextMenu>
+        </div>
       </div>
 
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>工具路径</Text>
-        <Card>
+      <div className="settings-section">
+        <div className="settings-section-title">工具路径</div>
+        <div className="settings-card">
           <ToolStatusRow name="BBDown" tool={tools.bbdown} />
-          <Field label="BBDown 路径">
-            <div className={styles.pathRow}>
-              <Input
+          <div className="settings-field">
+            <label className="settings-label">BBDown 路径</label>
+            <ContextMenu
+              items={[
+                { label: '粘贴路径', onSelect: () => pastePath('bbdownPath') },
+                { label: '清空', onSelect: () => updateSetting('bbdownPath', '') },
+                { label: '选择文件', onSelect: () => handleSelectPath('bbdownPath'), disabled: !isElectron },
+                { label: '重新检测', onSelect: refreshTools },
+              ]}
+            >
+              <div className="settings-path-row">
+              <input
+                className="settings-input settings-path-input"
                 value={settings.bbdownPath}
-                onChange={(_, data) => updateSetting('bbdownPath', data.value || '')}
-                style={{ flex: 1 }}
-                placeholder={isMac ? '/Users/zhangtao/Downloads/BBDown' : 'C:\\Tools\\BBDown.exe'}
+                onChange={(e) => updateSetting('bbdownPath', e.target.value || '')}
+                placeholder="选择 BBDown 可执行文件路径"
               />
-              <Tooltip content={isElectron ? '选择 BBDown 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
-                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('bbdownPath')} disabled={!isElectron} />
+              <Tooltip content={isElectron ? '选择 BBDown 可执行文件' : '浏览器预览模式不支持原生文件选择'}>
+                <Button variant="ghost" onClick={() => handleSelectPath('bbdownPath')} disabled={!isElectron}>
+                  <FolderOpen size={16} />
+                </Button>
               </Tooltip>
-            </div>
-            <div className={styles.downloadLinks}>
-              <Text size={100}>下载: </Text>
-              <Link href="https://github.com/nilaoda/BBDown/releases" target="_blank">BBDown GitHub</Link>
-            </div>
-          </Field>
+              </div>
+            </ContextMenu>
+          </div>
 
-          <Divider style={{ margin: '12px 0' }} />
+          <div className="settings-divider" />
 
           <ToolStatusRow name="FFmpeg" tool={tools.ffmpeg} />
-          <Field label="FFmpeg 路径">
-            <div className={styles.pathRow}>
-              <Input
+          <div className="settings-field">
+            <label className="settings-label">FFmpeg 路径</label>
+            <ContextMenu
+              items={[
+                { label: '粘贴路径', onSelect: () => pastePath('ffmpegPath') },
+                { label: '清空', onSelect: () => updateSetting('ffmpegPath', '') },
+                { label: '选择文件', onSelect: () => handleSelectPath('ffmpegPath'), disabled: !isElectron },
+                { label: '重新检测', onSelect: refreshTools },
+              ]}
+            >
+              <div className="settings-path-row">
+              <input
+                className="settings-input settings-path-input"
                 value={settings.ffmpegPath}
-                onChange={(_, data) => updateSetting('ffmpegPath', data.value || '')}
-                style={{ flex: 1 }}
-                placeholder={isMac ? '/opt/homebrew/bin/ffmpeg' : 'C:\\Tools\\ffmpeg.exe'}
+                onChange={(e) => updateSetting('ffmpegPath', e.target.value || '')}
+                placeholder="选择 FFmpeg 可执行文件路径"
               />
-              <Tooltip content={isElectron ? '选择 ffmpeg 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
-                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('ffmpegPath')} disabled={!isElectron} />
+              <Tooltip content={isElectron ? '选择 FFmpeg 可执行文件' : '浏览器预览模式不支持原生文件选择'}>
+                <Button variant="ghost" onClick={() => handleSelectPath('ffmpegPath')} disabled={!isElectron}>
+                  <FolderOpen size={16} />
+                </Button>
               </Tooltip>
-            </div>
-            <div className={styles.downloadLinks}>
-              <Text size={100}>下载: </Text>
-              <Link href="https://formulae.brew.sh/formula/ffmpeg" target="_blank">Homebrew</Link>
-              <Link href="https://www.gyan.dev/ffmpeg/builds/" target="_blank">FFmpeg (gyan.dev)</Link>
-              <Link href="https://github.com/BtbN/FFmpeg-Builds/releases" target="_blank">FFmpeg (GitHub)</Link>
-            </div>
-          </Field>
+              </div>
+            </ContextMenu>
+          </div>
 
-          <Divider style={{ margin: '12px 0' }} />
+          <div className="settings-divider" />
 
           <ToolStatusRow name="aria2c" tool={tools.aria2c} />
-          <Field label="aria2c 路径">
-            <div className={styles.pathRow}>
-              <Input
-                value={settings.aria2cPath}
-                onChange={(_, data) => updateSetting('aria2cPath', data.value || '')}
-                style={{ flex: 1 }}
-                placeholder={isMac ? '/opt/homebrew/bin/aria2c' : 'C:\\Tools\\aria2c.exe'}
-              />
-              <Tooltip content={isElectron ? '选择 aria2c 可执行文件' : '浏览器预览模式不支持原生文件选择'} relationship="label">
-                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('aria2cPath')} disabled={!isElectron} />
-              </Tooltip>
-            </div>
-            <div className={styles.downloadLinks}>
-              <Text size={100}>下载: </Text>
-              <Link href="https://github.com/aria2/aria2/releases" target="_blank">aria2 GitHub</Link>
-            </div>
-          </Field>
-
-          <Button appearance="subtle" icon={<ArrowRepeatAll20Regular />} onClick={refreshTools} style={{ marginTop: '12px' }}>
-            重新检测工具
-          </Button>
-        </Card>
-      </div>
-
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>下载设置</Text>
-        <Card className={styles.grid}>
-          <Field label="默认下载目录">
-            <div className={styles.pathRow}>
-              <Input value={settings.defaultWorkDir} onChange={(_, data) => updateSetting('defaultWorkDir', data.value || '')} style={{ flex: 1 }} />
-              <Tooltip content={isElectron ? '选择默认下载目录' : '浏览器预览模式不支持原生目录选择'} relationship="label">
-                <Button icon={<FolderOpen20Regular />} onClick={() => handleSelectPath('defaultWorkDir')} disabled={!isElectron} />
-              </Tooltip>
-            </div>
-          </Field>
-          <Field label="最大同时下载数">
-            <SpinButton value={settings.maxConcurrent} onChange={(_, data) => updateSetting('maxConcurrent', parseInt(String(data.value || '2'), 10))} min={1} max={10} />
-          </Field>
-        </Card>
-      </div>
-
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>后处理</Text>
-        <Card>
-          <Text size={200} block>
-            后处理现在放在历史记录里的具体产物上执行。下载页只负责解析、选择产物和下载；历史页负责重命名、移动、转封装和转码。
-          </Text>
-          <Text size={200} block className={styles.note}>
-            这样可以避免不同下载任务共享同一套全局规则，也能按视频、音频、字幕、弹幕、封面分别提供合适操作。
-          </Text>
-        </Card>
-      </div>
-
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>外观设置</Text>
-        <Card className={styles.grid}>
-          <Field label="主题">
-            <Dropdown
-              value={settings.theme === 'system' ? '跟随系统' : settings.theme === 'light' ? '浅色' : '深色'}
-              onOptionSelect={(_, data) => updateSetting('theme', data.optionValue as 'system' | 'light' | 'dark')}
+          <div className="settings-field">
+            <label className="settings-label">aria2c 路径</label>
+            <ContextMenu
+              items={[
+                { label: '粘贴路径', onSelect: () => pastePath('aria2cPath') },
+                { label: '清空', onSelect: () => updateSetting('aria2cPath', '') },
+                { label: '选择文件', onSelect: () => handleSelectPath('aria2cPath'), disabled: !isElectron },
+                { label: '重新检测', onSelect: refreshTools },
+              ]}
             >
-              <Option value="system">跟随系统</Option>
-              <Option value="light">浅色</Option>
-              <Option value="dark">深色</Option>
-            </Dropdown>
-          </Field>
-        </Card>
+              <div className="settings-path-row">
+              <input
+                className="settings-input settings-path-input"
+                value={settings.aria2cPath}
+                onChange={(e) => updateSetting('aria2cPath', e.target.value || '')}
+                placeholder="选择 aria2c 可执行文件路径（可选）"
+              />
+              <Tooltip content={isElectron ? '选择 aria2c 可执行文件' : '浏览器预览模式不支持原生文件选择'}>
+                <Button variant="ghost" onClick={() => handleSelectPath('aria2cPath')} disabled={!isElectron}>
+                  <FolderOpen size={16} />
+                </Button>
+              </Tooltip>
+              </div>
+            </ContextMenu>
+          </div>
+
+          <Button variant="ghost" onClick={refreshTools} style={{ marginTop: '12px' }}>
+            <RotateCw size={16} />
+            <span>重新检测工具</span>
+          </Button>
+        </div>
       </div>
 
-      <div className={styles.section}>
-        <Text className={styles.sectionTitle} size={400}>系统设置</Text>
-        <Card>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text>启用通知</Text>
-              <Switch checked={settings.notificationEnabled} onChange={(_, data) => updateSetting('notificationEnabled', data.checked ?? false)} />
+      <div className="settings-section">
+        <div className="settings-section-title">下载默认值</div>
+        <div className="settings-card">
+          <div className="settings-grid">
+            <div className="settings-field">
+              <label className="settings-label">默认下载目录</label>
+              <ContextMenu
+                items={[
+                  { label: '粘贴路径', onSelect: () => pastePath('defaultWorkDir') },
+                  { label: '清空', onSelect: () => updateSetting('defaultWorkDir', '') },
+                  { label: '选择目录', onSelect: () => handleSelectPath('defaultWorkDir'), disabled: !isElectron },
+                ]}
+              >
+                <div className="settings-path-row">
+                <input
+                  className="settings-input settings-path-input"
+                  value={settings.defaultWorkDir}
+                  onChange={(e) => updateSetting('defaultWorkDir', e.target.value || '')}
+                  placeholder="选择默认下载目录"
+                />
+                <Tooltip content={isElectron ? '选择默认下载目录' : '浏览器预览模式不支持原生目录选择'}>
+                  <Button variant="ghost" onClick={() => handleSelectPath('defaultWorkDir')} disabled={!isElectron}>
+                    <FolderOpen size={16} />
+                  </Button>
+                </Tooltip>
+                </div>
+              </ContextMenu>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text>自动检查更新</Text>
-              <Switch checked={settings.autoCheckUpdate} onChange={(_, data) => updateSetting('autoCheckUpdate', data.checked ?? false)} />
+            <div className="settings-field">
+              <label className="settings-label">最大同时下载数</label>
+              <input
+                type="number"
+                className="settings-input"
+                value={settings.maxConcurrent}
+                onChange={(e) => updateSetting('maxConcurrent', parseInt(e.target.value || '2', 10))}
+                min={1}
+                max={10}
+              />
+            </div>
+            <div className="settings-field">
+              <label className="settings-label">默认清晰度</label>
+              <Select value={settings.defaultQuality || ''} onValueChange={(value) => updateSetting('defaultQuality', value)}>
+                <SelectTrigger style={{ width: '100%' }}><SelectValue placeholder="自动" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_auto_">自动</SelectItem>
+                  <SelectItem value="8K 超高清">8K 超高清</SelectItem>
+                  <SelectItem value="4K 超清">4K 超清</SelectItem>
+                  <SelectItem value="1080P 高码">1080P 高码</SelectItem>
+                  <SelectItem value="1080P">1080P</SelectItem>
+                  <SelectItem value="720P">720P</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="settings-field">
+              <label className="settings-label">默认附加资源</label>
+              <div className="settings-inline-switches">
+                <label className="settings-mini-switch-row">
+                  <span className="settings-mini-switch-label">字幕</span>
+                  <Switch checked={settings.defaultDownloadSubtitle ?? true} onCheckedChange={(checked) => updateSetting('defaultDownloadSubtitle', !!checked)} />
+                </label>
+                <label className="settings-mini-switch-row">
+                  <span className="settings-mini-switch-label">弹幕</span>
+                  <Switch checked={settings.defaultDownloadDanmaku ?? true} onCheckedChange={(checked) => updateSetting('defaultDownloadDanmaku', !!checked)} />
+                </label>
+                <label className="settings-mini-switch-row">
+                  <span className="settings-mini-switch-label">封面</span>
+                  <Switch checked={settings.defaultDownloadCover ?? false} onCheckedChange={(checked) => updateSetting('defaultDownloadCover', !!checked)} />
+                </label>
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
-      <Button appearance="primary" icon={<Save20Regular />} onClick={handleSave} className={styles.saveButton}>
-        {saved ? '已保存' : '保存设置'}
+      <div className="settings-section">
+        <div className="settings-section-title">后处理默认值</div>
+        <div className="settings-card">
+          <div className="settings-grid">
+            <div className="settings-field">
+              <label className="settings-label">默认容器</label>
+              <Select value={settings.defaultContainer || 'mp4'} onValueChange={(value) => updateSetting('defaultContainer', value)}>
+                <SelectTrigger style={{ width: '100%' }}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mp4">MP4</SelectItem>
+                  <SelectItem value="mkv">MKV</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="settings-field">
+              <label className="settings-label">音频转码</label>
+              <Select value={settings.defaultAudioTranscode || 'copy'} onValueChange={(value) => updateSetting('defaultAudioTranscode', value)}>
+                <SelectTrigger style={{ width: '100%' }}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="copy">不转码（复制）</SelectItem>
+                  <SelectItem value="aac">AAC</SelectItem>
+                  <SelectItem value="mp3">MP3</SelectItem>
+                  <SelectItem value="flac">FLAC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="settings-field">
+              <label className="settings-label">保留策略</label>
+              <label className="settings-control-switch-row">
+                <span className="settings-switch-label">保留源文件</span>
+                <Switch checked={settings.keepSourceFile ?? true} onCheckedChange={(checked) => updateSetting('keepSourceFile', !!checked)} />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-title">外观设置</div>
+        <div className="settings-card">
+          <div className="settings-field">
+            <label className="settings-label">主题</label>
+            <Select value={settings.theme} onValueChange={(value) => updateSetting('theme', value as 'system' | 'light' | 'dark')}>
+              <SelectTrigger style={{ width: '100%' }}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system">跟随系统</SelectItem>
+                <SelectItem value="light">浅色</SelectItem>
+                <SelectItem value="dark">深色</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-title">系统设置</div>
+        <div className="settings-card">
+          <div className="settings-switch-row">
+            <span className="settings-switch-label">启用通知</span>
+            <Switch checked={settings.notificationEnabled} onCheckedChange={(checked) => updateSetting('notificationEnabled', !!checked)} />
+          </div>
+          <div className="settings-switch-row">
+            <span className="settings-switch-label">启动时检查更新</span>
+            <Switch checked={settings.autoCheckUpdate} onCheckedChange={(checked) => updateSetting('autoCheckUpdate', !!checked)} />
+          </div>
+          <div className="settings-switch-row">
+            <span className="settings-switch-label">关闭时最小化到托盘</span>
+            <Switch checked={settings.closeToTray} onCheckedChange={(checked) => updateSetting('closeToTray', !!checked)} />
+          </div>
+          <div className="settings-switch-row">
+            <span className="settings-switch-label">最小化到托盘</span>
+            <Switch checked={settings.minimizeToTray} onCheckedChange={(checked) => updateSetting('minimizeToTray', !!checked)} />
+          </div>
+        </div>
+      </div>
+
+      <Button variant="primary" onClick={handleSave} className="settings-save-button">
+        <Save size={16} />
+        <span>{saved ? '已保存' : '保存设置'}</span>
       </Button>
+
+      <Dialog open={isLoginDialogOpen} onOpenChange={(open) => { setIsLoginDialogOpen(open); if (!open) void cancelLogin() }}>
+        <DialogContent style={{ maxWidth: '400px' }}>
+          <DialogHeader><DialogTitle>B站扫码登录</DialogTitle></DialogHeader>
+          <DialogBody>
+            {loginStatus === 'scanning' && !qrcode && <div style={{ textAlign: 'center', padding: '40px' }}>正在初始化登录...</div>}
+            {qrcode && loginStatus === 'scanning' && (
+              <div style={{ textAlign: 'center' }}>
+                {qrcode.startsWith('data:image/') ? (
+                  <img src={qrcode} alt="Bilibili 登录二维码" style={{ width: '280px', height: '280px' }} />
+                ) : (
+                  <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', fontSize: '10px', padding: '10px' }}>{qrcode}</div>
+                )}
+                <p style={{ marginTop: '16px' }}>请使用 Bilibili 手机客户端扫码</p>
+              </div>
+            )}
+            {loginStatus === 'success' && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <CheckCircle2 size={48} style={{ color: 'var(--color-success)' }} />
+                <p style={{ marginTop: '16px', fontWeight: 500 }}>登录成功</p>
+              </div>
+            )}
+            {loginStatus === 'error' && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <XCircle size={48} style={{ color: 'var(--color-danger)' }} />
+                <p style={{ marginTop: '16px', fontWeight: 500 }}>登录失败</p>
+                <p style={{ color: 'var(--color-danger)', marginTop: '8px' }}>{loginError}</p>
+                <Button variant="primary" onClick={handleLogin} style={{ marginTop: '16px' }}>重试</Button>
+              </div>
+            )}
+            {loginStatus === 'cancelled' && (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <XCircle size={48} style={{ color: 'var(--color-text-muted)' }} />
+                <p style={{ marginTop: '16px', fontWeight: 500, color: 'var(--color-text-muted)' }}>已取消登录</p>
+                <Button variant="primary" onClick={handleLogin} style={{ marginTop: '16px' }}>重新登录</Button>
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setIsLoginDialogOpen(false); void cancelLogin() }}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent style={{ maxWidth: '400px' }}>
+          <DialogHeader><DialogTitle>确认登出</DialogTitle></DialogHeader>
+          <DialogBody>
+            <p>登出会删除 BBDown.data 本地登录凭据。确认继续？</p>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLogoutOpen(false)}>取消</Button>
+            <Button variant="primary" onClick={handleLogout}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

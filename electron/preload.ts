@@ -131,6 +131,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }> => ipcRenderer.invoke('util:setToolPath', toolName, toolPath),
     openDirectory: (dirPath: string): Promise<boolean> =>
       ipcRenderer.invoke('util:openDirectory', dirPath),
+    openExternal: (url: string): Promise<boolean> =>
+      ipcRenderer.invoke('util:openExternal', url),
     selectDirectory: (): Promise<string | null> =>
       ipcRenderer.invoke('util:selectDirectory'),
     selectFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
@@ -267,6 +269,7 @@ declare global {
           path: string
         }>
         openDirectory: (dirPath: string) => Promise<boolean>
+        openExternal: (url: string) => Promise<boolean>
         selectDirectory: () => Promise<string | null>
         selectFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>
         getPath: (name: 'home' | 'appData' | 'userData' | 'temp' | 'downloads' | 'documents') => Promise<string>

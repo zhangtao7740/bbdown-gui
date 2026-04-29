@@ -1,15 +1,16 @@
 import { useEffect, Component, type ReactNode, type ErrorInfo } from 'react'
-import { Card, Text, Button } from '@fluentui/react-components'
 import { ThemeProvider } from './components/layout/ThemeProvider'
-import { TitleBar } from './components/layout/TitleBar'
-import { Sidebar } from './components/layout/Sidebar'
+import { Button, TooltipProvider } from './components/ui'
+import { WindowTitleBar } from './components/layout/WindowTitleBar'
+import { SidebarNav, type TabValue } from './components/layout/SidebarNav'
+import { StatusBar } from './components/layout/StatusBar'
 import { DownloadPage } from './components/pages/DownloadPage'
 import { TasksPage } from './components/pages/TasksPage'
 import { HistoryPage } from './components/pages/HistoryPage'
 import { SettingsPage } from './components/pages/SettingsPage'
-import { PluginsPage } from './components/pages/PluginsPage'
 import { AboutPage } from './components/pages/AboutPage'
-import { useAppStore, type TabValue } from './store/appStore'
+import { useAppStore } from './store/appStore'
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import './App.css'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -29,12 +30,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'var(--colorNeutralBackground1)' }}>
-          <Card style={{ maxWidth: '400px', padding: '24px', textAlign: 'center' }}>
-            <Text size={500} weight="semibold" block style={{ marginBottom: '12px' }}>渲染出错</Text>
-            <Text block style={{ marginBottom: '20px' }}>应用程序在渲染时发生了意外错误。这可能是插件冲突或数据异常导致的。</Text>
-            <Button appearance="primary" onClick={() => window.location.reload()}>重新加载应用</Button>
-          </Card>
+        <div className="error-boundary">
+          <div className="error-boundary-card">
+            <h2 className="error-boundary-title">渲染出错</h2>
+            <p className="error-boundary-desc">应用程序在渲染时发生了意外错误。这可能是插件冲突或数据异常导致的。</p>
+            <Button variant="primary" onClick={() => window.location.reload()}>重新加载应用</Button>
+          </div>
         </div>
       )
     }
@@ -53,8 +54,6 @@ const renderPage = (tab: TabValue) => {
       return <HistoryPage />
     case 'settings':
       return <SettingsPage />
-    case 'plugins':
-      return <PluginsPage />
     case 'about':
       return <AboutPage />
     default:
@@ -66,6 +65,12 @@ function AppContent() {
   const { selectedTab, setSelectedTab, subscribeToTaskEvents, refreshTasks, loadSettings, refreshTools, tasks } = useAppStore()
   const activeTaskCount = tasks.filter((task) => ['waiting', 'downloading', 'processing'].includes(task.status)).length
 
+  useGlobalShortcuts({
+    currentTab: selectedTab,
+    setSelectedTab,
+    refreshData: refreshTasks,
+  })
+
   useEffect(() => {
     const unsubscribe = subscribeToTaskEvents()
     void loadSettings().then(async () => {
@@ -76,21 +81,15 @@ function AppContent() {
   }, [subscribeToTaskEvents, refreshTasks, loadSettings, refreshTools])
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        overflow: 'hidden',
-      }}
-    >
-      <TitleBar />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar selectedTab={selectedTab} onTabChange={setSelectedTab} activeTaskCount={activeTaskCount} />
-        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+    <div className="app-shell">
+      <WindowTitleBar />
+      <div className="app-shell-body">
+        <SidebarNav selectedTab={selectedTab} onTabChange={setSelectedTab} activeTaskCount={activeTaskCount} />
+        <main className="app-shell-main">
           {renderPage(selectedTab)}
-        </div>
+        </main>
       </div>
+      <StatusBar />
     </div>
   )
 }
@@ -98,9 +97,11 @@ function AppContent() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
+      <TooltipProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </TooltipProvider>
     </ErrorBoundary>
   )
 }

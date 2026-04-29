@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { DownloadOptions, DownloadTask, LogEntry, VideoInfo } from '../../electron/core/types'
 import { api } from '@/lib/runtime'
 
-export type TabValue = 'download' | 'tasks' | 'history' | 'settings' | 'plugins' | 'about'
+export type TabValue = 'download' | 'tasks' | 'history' | 'settings' | 'about'
 
 export interface DownloadOptionsForm {
   apiMode: 'web' | 'tv' | 'app' | 'intl'
@@ -16,8 +16,7 @@ export interface DownloadOptionsForm {
   downloadSubtitle: boolean
   downloadCover: boolean
   skipCover: boolean
-  videoOnly: boolean
-  audioOnly: boolean
+  mediaMode: 'full' | 'videoOnly' | 'audioOnly'
   useAria2c: boolean
   aria2cArgs: string
   multiThread: boolean
@@ -41,8 +40,7 @@ const defaultDownloadOptions: DownloadOptionsForm = {
   downloadSubtitle: true,
   downloadCover: false,
   skipCover: false,
-  videoOnly: false,
-  audioOnly: false,
+  mediaMode: 'full',
   useAria2c: false,
   aria2cArgs: '',
   multiThread: true,
@@ -72,6 +70,13 @@ export interface AppSettings {
   minimizeToTray: boolean
   autoCheckUpdate: boolean
   notificationEnabled: boolean
+  defaultQuality: string
+  defaultDownloadSubtitle: boolean
+  defaultDownloadDanmaku: boolean
+  defaultDownloadCover: boolean
+  defaultContainer: string
+  defaultAudioTranscode: string
+  keepSourceFile: boolean
 }
 
 const defaultSettings: AppSettings = {
@@ -85,6 +90,13 @@ const defaultSettings: AppSettings = {
   minimizeToTray: false,
   autoCheckUpdate: true,
   notificationEnabled: true,
+  defaultQuality: '',
+  defaultDownloadSubtitle: true,
+  defaultDownloadDanmaku: true,
+  defaultDownloadCover: false,
+  defaultContainer: 'mp4',
+  defaultAudioTranscode: 'copy',
+  keepSourceFile: true,
 }
 
 function resolveToolPath(
@@ -240,8 +252,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       downloadSubtitle: options.downloadSubtitle,
       downloadCover: options.downloadCover,
       skipCover: options.skipCover,
-      videoOnly: options.videoOnly,
-      audioOnly: options.audioOnly,
+      videoOnly: options.mediaMode === 'videoOnly',
+      audioOnly: options.mediaMode === 'audioOnly',
       useAria2c: options.useAria2c,
       aria2cArgs: options.aria2cArgs,
       multiThread: options.multiThread,
