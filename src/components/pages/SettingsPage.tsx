@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { FolderOpen, Save, RotateCw, CheckCircle2, XCircle, User, LogOut } from 'lucide-react'
 import { Button, Badge, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Switch, Tooltip, Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter, ContextMenu } from '@/components/ui'
-import { useAppStore } from '@/store/appStore'
+import { AUTO_SELECT_VALUE, normalizeSelectValue, useAppStore } from '@/store/appStore'
 import { api, isRunningInElectron } from '@/lib/runtime'
 import './SettingsPage.css'
 
@@ -298,10 +298,10 @@ export function SettingsPage() {
             </div>
             <div className="settings-field">
               <label className="settings-label">默认清晰度</label>
-              <Select value={settings.defaultQuality || ''} onValueChange={(value) => updateSetting('defaultQuality', value)}>
+              <Select value={settings.defaultQuality || ''} onValueChange={(value) => updateSetting('defaultQuality', normalizeSelectValue(value))}>
                 <SelectTrigger style={{ width: '100%' }}><SelectValue placeholder="自动" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="_auto_">自动</SelectItem>
+                  <SelectItem value={AUTO_SELECT_VALUE}>自动</SelectItem>
                   <SelectItem value="8K 超高清">8K 超高清</SelectItem>
                   <SelectItem value="4K 超清">4K 超清</SelectItem>
                   <SelectItem value="1080P 高码">1080P 高码</SelectItem>

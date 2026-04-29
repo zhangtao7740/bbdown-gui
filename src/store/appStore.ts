@@ -28,6 +28,12 @@ export interface DownloadOptionsForm {
   useMP4box: boolean
 }
 
+export const AUTO_SELECT_VALUE = '_auto_'
+
+export function normalizeSelectValue(value: string | undefined): string {
+  return !value || value === AUTO_SELECT_VALUE ? '' : value
+}
+
 const defaultDownloadOptions: DownloadOptionsForm = {
   apiMode: 'web',
   encodingPriority: 'hevc,av1,avc',
@@ -192,7 +198,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       settings: loadedSettings,
       downloadOptions: {
         ...state.downloadOptions,
+        dfnPriority: state.downloadOptions.dfnPriority || normalizeSelectValue(loadedSettings.defaultQuality),
         workDir: state.downloadOptions.workDir || loadedSettings.defaultWorkDir,
+        downloadSubtitle: loadedSettings.defaultDownloadSubtitle,
+        downloadDanmaku: loadedSettings.defaultDownloadDanmaku,
+        downloadCover: loadedSettings.defaultDownloadCover,
       },
     }))
     if (loadedSettings.bbdownPath) await api.util.setToolPath('bbdown', loadedSettings.bbdownPath)
@@ -239,11 +249,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const options = get().downloadOptions
     const settings = get().settings
     const tools = get().tools
+    const dfnPriority = normalizeSelectValue(options.dfnPriority)
     const downloadOptions: DownloadOptions = {
       url,
       apiMode: options.apiMode,
       encodingPriority: options.encodingPriority.split(',').map((item) => item.trim()).filter(Boolean),
-      dfnPriority: options.dfnPriority ? options.dfnPriority.split(',').map((item) => item.trim()).filter(Boolean) : [],
+      dfnPriority: dfnPriority ? dfnPriority.split(',').map((item) => item.trim()).filter(Boolean) : [],
       selectedPages: options.selectedPages,
       filePattern: options.filePattern,
       multiFilePattern: options.multiFilePattern,

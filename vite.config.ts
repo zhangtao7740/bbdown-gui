@@ -18,37 +18,17 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    electron([
-      {
-        entry: 'electron/main.ts',
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['child_process', 'fs', 'path', 'os'],
-            },
+    electron({
+      entry: 'electron/main.ts',
+      vite: {
+        build: {
+          outDir: 'dist-electron',
+          rollupOptions: {
+            external: ['child_process', 'fs', 'path', 'os'],
           },
         },
       },
-      {
-        entry: 'electron/preload.ts',
-        onstart(args) {
-          args.reload()
-        },
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['electron'],
-              output: {
-                format: 'cjs',
-                entryFileNames: 'preload.cjs',
-              },
-            },
-          },
-        },
-      },
-    ]),
+    }),
     renderer(),
   ],
 })

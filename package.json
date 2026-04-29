@@ -1,6 +1,6 @@
 {
   "name": "bbdown-gui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Electron GUI for BBDown.",
   "private": false,
   "license": "MIT",
@@ -16,7 +16,7 @@
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/build-preload.mjs && vite",
     "build": "tsc -b && vite build && node scripts/build-preload.mjs",
     "build:icons": "node scripts/generate-icons.mjs",
     "lint": "eslint .",

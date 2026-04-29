@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Search, User, FolderOpen, CheckCircle2, XCircle, ChevronDown, ChevronRight, Calendar } from 'lucide-react'
 import { Button, Badge, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Tooltip, Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter, ContextMenu } from '@/components/ui'
 import { api, isRunningInElectron } from '@/lib/runtime'
-import { useAppStore } from '@/store/appStore'
+import { AUTO_SELECT_VALUE, normalizeSelectValue, useAppStore } from '@/store/appStore'
 import type { ToolInfo } from '@/store/appStore'
 import type { VideoInfo, VideoPage } from '../../../electron/core/types'
 import emptyDownloadAsset from '@/assets/empty-download.svg'
@@ -286,14 +286,14 @@ function DownloadOptionsPanel() {
           <label className="download-page-field-label">清晰度</label>
           <Select
             value={downloadOptions.dfnPriority || ''}
-            onValueChange={(value) => updateDownloadOption('dfnPriority', value)}
+            onValueChange={(value) => updateDownloadOption('dfnPriority', normalizeSelectValue(value))}
           >
             <SelectTrigger className="download-page-select-wrapper">
               <SelectValue placeholder="自动" />
             </SelectTrigger>
             <SelectContent>
               {qualityOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value || '_auto_'}>{opt.label}</SelectItem>
+                <SelectItem key={opt.value || AUTO_SELECT_VALUE} value={opt.value || AUTO_SELECT_VALUE}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -88,9 +88,27 @@ export class ToolDetector {
   }
 
   private static async getVersion(path: string, toolName: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const args = toolName === 'bbdown' ? ['--version'] : ['-version']
+    const argSets = toolName === 'bbdown' ? [['--version'], ['--help']] : [['-version']]
+    let sawExecutable = false
+    let lastError: Error | null = null
 
+    for (const args of argSets) {
+      try {
+        const output = await this.getVersionOutput(path, args)
+        sawExecutable = true
+        const version = this.parseVersion(output)
+        if (version) return version
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+      }
+    }
+
+    if (sawExecutable) return 'unknown'
+    throw lastError || new Error('Unable to detect version')
+  }
+
+  private static async getVersionOutput(path: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
       const process = spawn(path, args, {
         timeout: 5000,
       })
@@ -111,21 +129,19 @@ export class ToolDetector {
           return
         }
 
-        const versionMatch = output.match(/(\d+\.\d+\.\d+)/)
-        if (versionMatch) {
-          resolve(versionMatch[1])
-        } else {
-          const shortMatch = output.match(/version\s+(\S+)/i)
-          if (shortMatch) {
-            resolve(shortMatch[1])
-          } else {
-            resolve('unknown')
-          }
-        }
+        resolve(output)
       })
 
       process.on('error', reject)
     })
+  }
+
+  private static parseVersion(output: string): string | null {
+    const versionMatch = output.match(/(\d+\.\d+\.\d+)/)
+    if (versionMatch) return versionMatch[1]
+
+    const shortMatch = output.match(/version\s+(\S+)/i)
+    return shortMatch ? shortMatch[1] : null
   }
 
   private static buildCandidatePaths(exeName: string): string[] {

@@ -512,19 +512,39 @@ export class BBDownWrapper {
   }
 
   async getVersion(): Promise<string> {
+    for (const args of [['--version'], ['--help']]) {
+      try {
+        const output = await this.getVersionOutput(args)
+        const versionMatch = output.match(/(\d+\.\d+\.\d+)/)
+        if (versionMatch) return versionMatch[1]
+      } catch {
+        continue
+      }
+    }
+
+    return 'unknown'
+  }
+
+  private async getVersionOutput(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn(this.bbdownPath, ['--version'], { env: this.buildToolEnv(), windowsHide: true })
+      const proc = spawn(this.bbdownPath, args, { env: this.buildToolEnv(), windowsHide: true })
       let stdout = ''
+      let stderr = ''
       const stdoutDecoder = new TextDecoder(this.outputEncoding)
+      const stderrDecoder = new TextDecoder(this.outputEncoding)
 
       proc.stdout?.on('data', (data: Buffer) => {
         stdout += stdoutDecoder.decode(data, { stream: true })
       })
 
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += stderrDecoder.decode(data, { stream: true })
+      })
+
       proc.on('close', () => {
         stdout += stdoutDecoder.decode()
-        const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/)
-        resolve(versionMatch ? versionMatch[1] : 'unknown')
+        stderr += stderrDecoder.decode()
+        resolve(`${stdout}\n${stderr}`)
       })
 
       proc.on('error', reject)
